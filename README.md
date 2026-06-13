@@ -211,6 +211,12 @@ Generate a local test JWT:
 go run ./cmd/token   -user-id 00000000-0000-0000-0000-000000000001   -secret change-me   -issuer home-api   -audience home-api-api
 ```
 
+Generate an Argon2id password hash:
+
+```bash
+printf '%s' 'password123' | go run ./cmd/password-hash
+```
+
 Then call the API:
 
 ```bash

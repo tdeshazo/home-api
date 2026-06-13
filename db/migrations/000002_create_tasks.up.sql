@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     )
 );
 
+DROP TRIGGER IF EXISTS tasks_set_updated_at ON tasks;
+
 CREATE TRIGGER tasks_set_updated_at
 BEFORE UPDATE ON tasks
 FOR EACH ROW
@@ -34,9 +36,9 @@ EXECUTE FUNCTION set_updated_at();
 CREATE TABLE IF NOT EXISTS task_assignments (
     task_id UUID NOT NULL,
     user_id UUID NOT NULL,
-    PRIMARY KEY (task_id, user_id),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE
+    CONSTRAINT task_assignments_pkey PRIMARY KEY (task_id, user_id),
+    CONSTRAINT task_assignments_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT task_assignments_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS task_completions (
@@ -45,7 +47,7 @@ CREATE TABLE IF NOT EXISTS task_completions (
     user_id UUID NOT NULL,
     completed_on date NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    UNIQUE(task_id, user_id, completed_on),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE
+    CONSTRAINT task_completions_task_user_completed_on_key UNIQUE(task_id, user_id, completed_on),
+    CONSTRAINT task_completions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT task_completions_task_id_fkey FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE
 );
