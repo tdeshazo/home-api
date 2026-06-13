@@ -8,9 +8,9 @@ when:
     branch: ${CI_REPO_DEFAULT_BRANCH}
 
 variables:
-  IMAGE_REPOSITORY: cr.home.deshazo.dev/homeapi
+  IMAGE_REPOSITORY: cr.home.deshazo.dev
   CONTAINER_NAME: home-api-app
-  APP_PORT: 8080
+  APP_PORT: 8888
 
 steps:
   - name: lint
