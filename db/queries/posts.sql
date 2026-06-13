@@ -25,28 +25,34 @@ FROM posts
 WHERE id = $1 AND user_id = $2;
 
 -- name: ListPosts :many
-SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at, count(replies.id)::bigint AS reply_count
 FROM posts
 JOIN users ON users.id = posts.user_id
+LEFT JOIN posts AS replies ON replies.parent_post_id = posts.id
 WHERE posts.parent_post_id IS NULL
+GROUP BY posts.id, users.display_name, users.handle
 ORDER BY posts.created_at DESC, posts.id DESC
 LIMIT $1
 OFFSET $2;
 
 -- name: ListPostsByUser :many
-SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at, count(replies.id)::bigint AS reply_count
 FROM posts
 JOIN users ON users.id = posts.user_id
+LEFT JOIN posts AS replies ON replies.parent_post_id = posts.id
 WHERE posts.user_id = $1 AND posts.parent_post_id IS NULL
+GROUP BY posts.id, users.display_name, users.handle
 ORDER BY posts.created_at DESC, posts.id DESC
 LIMIT $2
 OFFSET $3;
 
 -- name: ListPostReplies :many
-SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at, count(replies.id)::bigint AS reply_count
 FROM posts
 JOIN users ON users.id = posts.user_id
+LEFT JOIN posts AS replies ON replies.parent_post_id = posts.id
 WHERE posts.parent_post_id = $1
+GROUP BY posts.id, users.display_name, users.handle
 ORDER BY posts.created_at ASC, posts.id ASC
 LIMIT $2
 OFFSET $3;

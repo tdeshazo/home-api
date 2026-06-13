@@ -298,6 +298,9 @@ function renderPost(post, depth = 0) {
   const className = depth === 0 ? "post" : "reply";
   const repliesHTML = expanded ? renderReplies(post.id, depth + 1) : "";
   const replyFormHTML = canReply ? renderReplyForm(post.id) : "";
+  const replyCount = post.reply_count ?? 0;
+  const repliesDisabled = replyCount === 0;
+  const repliesLabel = expanded ? "Hide replies" : `Replies${replyCount > 0 ? ` (${replyCount})` : ""}`;
 
   return `
     <article class="${className}" data-post-id="${escapeHTML(post.id)}">
@@ -310,10 +313,10 @@ function renderPost(post, depth = 0) {
       </div>
       <p class="post-body">${escapeHTML(post.body)}</p>
       <div class="post-actions">
-        <button class="text-action" type="button" data-action="toggle-replies" data-post-id="${escapeHTML(post.id)}">
-          ${expanded ? "Hide replies" : "Replies"}
-        </button>
         ${canReply ? `<button class="text-action" type="button" data-action="toggle-reply-form" data-post-id="${escapeHTML(post.id)}">Reply</button>` : ""}
+        <button class="text-action" type="button" data-action="toggle-replies" data-post-id="${escapeHTML(post.id)}" ${repliesDisabled ? "disabled" : ""}>
+          ${escapeHTML(repliesLabel)}
+        </button>
       </div>
       ${replyFormHTML}
       ${repliesHTML}
@@ -417,6 +420,7 @@ async function handleReplySubmit(event) {
       body: { body },
     });
     const replies = replyState(postID);
+    incrementReplyCount(postID);
     replies.expanded = true;
     replies.formOpen = false;
     replies.hasLoaded = false;
@@ -465,6 +469,23 @@ function replyState(postID) {
     items: [],
   };
   return state.replies[postID];
+}
+
+function incrementReplyCount(postID) {
+  const post = findPostByID(postID);
+  if (!post) return;
+  post.reply_count = (post.reply_count ?? 0) + 1;
+}
+
+function findPostByID(postID) {
+  const topLevelPost = state.posts.find((post) => post.id === postID);
+  if (topLevelPost) return topLevelPost;
+
+  for (const replies of Object.values(state.replies)) {
+    const reply = replies.items.find((item) => item.id === postID);
+    if (reply) return reply;
+  }
+  return null;
 }
 
 function updatePostCounter() {

@@ -126,10 +126,12 @@ func (q *Queries) GetPostForUser(ctx context.Context, arg GetPostForUserParams) 
 }
 
 const listPosts = `-- name: ListPosts :many
-SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at, count(replies.id)::bigint AS reply_count
 FROM posts
 JOIN users ON users.id = posts.user_id
+LEFT JOIN posts AS replies ON replies.parent_post_id = posts.id
 WHERE posts.parent_post_id IS NULL
+GROUP BY posts.id, users.display_name, users.handle
 ORDER BY posts.created_at DESC, posts.id DESC
 LIMIT $1
 OFFSET $2
@@ -148,6 +150,7 @@ type ListPostsRow struct {
 	Body        string    `json:"body"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	ReplyCount  int64     `json:"reply_count"`
 }
 
 func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]ListPostsRow, error) {
@@ -167,6 +170,7 @@ func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]ListPos
 			&i.Body,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ReplyCount,
 		); err != nil {
 			return nil, err
 		}
@@ -182,10 +186,12 @@ func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]ListPos
 }
 
 const listPostsByUser = `-- name: ListPostsByUser :many
-SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at, count(replies.id)::bigint AS reply_count
 FROM posts
 JOIN users ON users.id = posts.user_id
+LEFT JOIN posts AS replies ON replies.parent_post_id = posts.id
 WHERE posts.user_id = $1 AND posts.parent_post_id IS NULL
+GROUP BY posts.id, users.display_name, users.handle
 ORDER BY posts.created_at DESC, posts.id DESC
 LIMIT $2
 OFFSET $3
@@ -205,6 +211,7 @@ type ListPostsByUserRow struct {
 	Body        string    `json:"body"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	ReplyCount  int64     `json:"reply_count"`
 }
 
 func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]ListPostsByUserRow, error) {
@@ -224,6 +231,7 @@ func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams
 			&i.Body,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ReplyCount,
 		); err != nil {
 			return nil, err
 		}
@@ -239,10 +247,12 @@ func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams
 }
 
 const listPostReplies = `-- name: ListPostReplies :many
-SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at, count(replies.id)::bigint AS reply_count
 FROM posts
 JOIN users ON users.id = posts.user_id
+LEFT JOIN posts AS replies ON replies.parent_post_id = posts.id
 WHERE posts.parent_post_id = $1
+GROUP BY posts.id, users.display_name, users.handle
 ORDER BY posts.created_at ASC, posts.id ASC
 LIMIT $2
 OFFSET $3
@@ -262,6 +272,7 @@ type ListPostRepliesRow struct {
 	Body        string    `json:"body"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	ReplyCount  int64     `json:"reply_count"`
 }
 
 func (q *Queries) ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]ListPostRepliesRow, error) {
@@ -281,6 +292,7 @@ func (q *Queries) ListPostReplies(ctx context.Context, arg ListPostRepliesParams
 			&i.Body,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ReplyCount,
 		); err != nil {
 			return nil, err
 		}
