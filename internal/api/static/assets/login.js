@@ -141,12 +141,14 @@ async function handleLogout() {
 
 async function hydrateCurrentUser(showError = true) {
   try {
-    const user = await apiFetch("/api/me");
+    const user = await apiFetch("/api/me", { auth: true });
     saveSession(user);
   } catch (error) {
-    state.session = null;
-    writeSession(null);
-    renderSession();
+    if (isAuthError(error)) {
+      state.session = null;
+      writeSession(null);
+      renderSession();
+    }
     if (showError) setAuthStatus(error.message);
   }
 }
@@ -167,10 +169,26 @@ async function apiFetch(path, options = {}) {
 
   const contentType = response.headers.get("Content-Type") ?? "";
   const payload = contentType.includes("application/json") ? await response.json() : null;
+  if (response.status === 401 && options.auth && !options.skipRefresh) {
+    await apiFetch("/api/auth/refresh", { method: "POST", skipRefresh: true });
+    return apiFetch(path, { ...options, skipRefresh: true });
+  }
   if (!response.ok) {
-    throw new Error(payload?.error || `Request failed with status ${response.status}`);
+    throw new APIError(payload?.error || `Request failed with status ${response.status}`, response.status);
   }
   return payload;
+}
+
+class APIError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = "APIError";
+    this.status = status;
+  }
+}
+
+function isAuthError(error) {
+  return error instanceof APIError && (error.status === 401 || error.status === 403);
 }
 
 function saveSession(user) {

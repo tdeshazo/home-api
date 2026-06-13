@@ -81,11 +81,13 @@ steps:
 
       docker push ${image_repo}:$CI_COMMIT_SHA
       docker pull ${image_repo}:$CI_COMMIT_SHA
-      docker rm -f ${app_name} 2>/dev/null || true
+      docker stop -t 15 ${app_name} 2>/dev/null || true
+      docker rm ${app_name} 2>/dev/null || true
 
       docker run -d \
         --name ${app_name} \
         --restart unless-stopped \
+        --stop-timeout 15 \
         --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
         --label "dev.deshazo.homeapi.managed-by=crow" \
         -p ${app_port}:8080 \

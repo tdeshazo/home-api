@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/tdeshazo/home-api/internal/api"
@@ -101,10 +103,38 @@ func run() int {
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
+	shutdownSignal, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	serverErr := make(chan error, 1)
 	logger.Info("listening", "addr", httpServer.Addr)
-	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		logger.Error("listen", "error", err)
-		return 1
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			serverErr <- err
+			return
+		}
+		serverErr <- nil
+	}()
+
+	select {
+	case err := <-serverErr:
+		if err != nil {
+			logger.Error("listen", "error", err)
+			return 1
+		}
+	case <-shutdownSignal.Done():
+		stop()
+		logger.Info("shutting down")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error("shutdown", "error", err)
+			return 1
+		}
+		if err := <-serverErr; err != nil {
+			logger.Error("listen", "error", err)
+			return 1
+		}
 	}
 
 	return 0
