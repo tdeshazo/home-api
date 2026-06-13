@@ -16,15 +16,18 @@ WHERE id = $1 AND user_id = $2;
 -- name: ListPosts :many
 SELECT id, user_id, body, created_at, updated_at
 FROM posts
-ORDER BY created_at DESC
-LIMIT $1;
+WHERE parent_post_id IS NULL
+ORDER BY created_at DESC, id DESC
+LIMIT $1
+OFFSET $2;
 
 -- name: ListPostsByUser :many
 SELECT id, user_id, body, created_at, updated_at
 FROM posts
-WHERE user_id = $1
-ORDER BY created_at DESC
-LIMIT $2;
+WHERE user_id = $1 AND parent_post_id IS NULL
+ORDER BY created_at DESC, id DESC
+LIMIT $2
+OFFSET $3;
 
 -- name: UpdatePostForUser :one
 UPDATE posts

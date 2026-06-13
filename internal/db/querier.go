@@ -25,7 +25,7 @@ type Querier interface {
 	GetTask(ctx context.Context, id uuid.UUID) (Task, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
-	ListPosts(ctx context.Context, limit int32) ([]Post, error)
+	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
 	ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]Post, error)
 	ListTasks(ctx context.Context) ([]Task, error)
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error

@@ -63,7 +63,11 @@ func (s *Server) getPost(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) listPosts(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimit(r, 50)
-	posts, err := s.queries.ListPosts(r.Context(), limit)
+	offset := parseOffset(r)
+	posts, err := s.queries.ListPosts(r.Context(), db.ListPostsParams{
+		Limit:  limit,
+		Offset: offset,
+	})
 	if err != nil {
 		SetLogError(r.Context(), err)
 		writeError(w, http.StatusInternalServerError, "could not list posts")
@@ -80,9 +84,11 @@ func (s *Server) listPostsByUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit := parseLimit(r, 50)
+	offset := parseOffset(r)
 	posts, err := s.queries.ListPostsByUser(r.Context(), db.ListPostsByUserParams{
 		UserID: userID,
 		Limit:  limit,
+		Offset: offset,
 	})
 	if err != nil {
 		SetLogError(r.Context(), err)
@@ -102,9 +108,11 @@ func (s *Server) listMyPosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	limit := parseLimit(r, 50)
+	offset := parseOffset(r)
 	posts, err := s.queries.ListPostsByUser(r.Context(), db.ListPostsByUserParams{
 		UserID: user.ID,
 		Limit:  limit,
+		Offset: offset,
 	})
 	if err != nil {
 		SetLogError(r.Context(), err)

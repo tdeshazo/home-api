@@ -36,6 +36,19 @@ func parseLimit(r *http.Request, fallback int32) int32 {
 	return int32(value)
 }
 
+func parseOffset(r *http.Request) int32 {
+	raw := r.URL.Query().Get("offset")
+	if raw == "" {
+		return 0
+	}
+
+	value, err := strconv.ParseInt(raw, 10, 32)
+	if err != nil || value < 0 {
+		return 0
+	}
+	return int32(value)
+}
+
 func handleDBError(w http.ResponseWriter, err error, notFoundMessage string) {
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, notFoundMessage)

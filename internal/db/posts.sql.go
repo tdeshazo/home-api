@@ -96,12 +96,19 @@ func (q *Queries) GetPostForUser(ctx context.Context, arg GetPostForUserParams) 
 const listPosts = `-- name: ListPosts :many
 SELECT id, user_id, body, created_at, updated_at
 FROM posts
-ORDER BY created_at DESC
+WHERE parent_post_id IS NULL
+ORDER BY created_at DESC, id DESC
 LIMIT $1
+OFFSET $2
 `
 
-func (q *Queries) ListPosts(ctx context.Context, limit int32) ([]Post, error) {
-	rows, err := q.db.QueryContext(ctx, listPosts, limit)
+type ListPostsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error) {
+	rows, err := q.db.QueryContext(ctx, listPosts, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -132,18 +139,20 @@ func (q *Queries) ListPosts(ctx context.Context, limit int32) ([]Post, error) {
 const listPostsByUser = `-- name: ListPostsByUser :many
 SELECT id, user_id, body, created_at, updated_at
 FROM posts
-WHERE user_id = $1
-ORDER BY created_at DESC
+WHERE user_id = $1 AND parent_post_id IS NULL
+ORDER BY created_at DESC, id DESC
 LIMIT $2
+OFFSET $3
 `
 
 type ListPostsByUserParams struct {
 	UserID uuid.UUID `json:"user_id"`
 	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]Post, error) {
-	rows, err := q.db.QueryContext(ctx, listPostsByUser, arg.UserID, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listPostsByUser, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
