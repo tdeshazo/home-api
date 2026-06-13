@@ -1,0 +1,152 @@
+name: ci
+
+when:
+  - event: pull_request
+  - event: push
+    branch: ${CI_REPO_DEFAULT_BRANCH}
+
+variables:
+  IMAGE_REPOSITORY: cr.home.deshazo.dev/homeapi
+  CONTAINER_NAME: home-api-app
+  APP_PORT: 8080
+
+steps:
+  - name: lint
+    image: golang:1.26.4-alpine
+    commands: |
+      apk add --no-cache git
+
+      files="$(gofmt -l ./cmd ./internal)"
+      if [ -n "$files" ]; then
+        echo "The following files need gofmt:"
+        echo "$files"
+        exit 1
+      fi
+
+      go mod tidy
+      git diff --exit-code go.mod go.sum
+      go vet ./...
+
+      go install honnef.co/go/tools/cmd/staticcheck@latest
+      staticcheck ./...
+
+  - name: test
+    image: golang:1.26.4-alpine
+    commands: |
+      go test -shuffle=on ./...
+      go test -shuffle=on ./... -coverprofile=coverage.out -covermode=atomic
+
+  - name: race
+    image: golang:1.26.4-alpine
+    commands:
+      - go test -race -shuffle=on ./...
+
+  - name: security
+    image: golang:1.26.4-alpine
+    commands: |
+      go install golang.org/x/vuln/cmd/govulncheck@latest
+      govulncheck ./...
+
+  - name: docker-build
+    image: docker:28-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands: |
+      image_repository="${IMAGE_REPOSITORY}"
+      image_commit="$image_repository:$CI_COMMIT_SHA"
+      image_latest="$image_repository:latest"
+      build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      docker build \
+        --build-arg GIT_SHA="$CI_COMMIT_SHA" \
+        --build-arg BUILD_TIME="$build_time" \
+        --label "org.opencontainers.image.created=$build_time" \
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+        --label "org.opencontainers.image.source=$CI_REPO_CLONE_URL" \
+        -t "$image_commit" \
+        -t "$image_latest" \
+        .
+    when:
+      - event: push
+        branch: ${CI_REPO_DEFAULT_BRANCH}
+
+  - name: docker-push
+    image: docker:28-cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands: |
+      image_repository="${IMAGE_REPOSITORY}"
+      image_commit="$image_repository:$CI_COMMIT_SHA"
+      image_latest="$image_repository:latest"
+
+      docker push "$image_commit"
+      docker push "$image_latest"
+    when:
+      - event: push
+        branch: ${CI_REPO_DEFAULT_BRANCH}
+
+  - name: deploy
+    image: docker:28-cli
+    environment:
+      DATABASE_URL:
+        from_secret: homeapi_database_url
+      JWT_SECRET:
+        from_secret: homeapi_jwt_secret
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands: |
+      image_repository="${IMAGE_REPOSITORY}"
+      image_latest="$image_repository:latest"
+      container_name="${CONTAINER_NAME}"
+      previous_name="${container_name}-previous"
+      app_port="${APP_PORT}"
+
+      test -n "$DATABASE_URL"
+      test -n "$JWT_SECRET"
+
+      docker pull "$image_latest"
+      docker rm -f "$previous_name" 2>/dev/null || true
+      if docker inspect "$container_name" >/dev/null 2>&1; then
+        docker stop "$container_name"
+        docker rename "$container_name" "$previous_name"
+      fi
+
+      docker run -d \
+        --name "$container_name" \
+        --restart unless-stopped \
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+        --label "dev.deshazo.homeapi.managed-by=crow" \
+        -p "$app_port:8080" \
+        --env APP_ENV=production \
+        --env PORT=8080 \
+        --env DATABASE_URL \
+        --env LOG_LEVEL=info \
+        --env LOG_SOURCE=false \
+        --env AUTH_MODE=jwt \
+        --env JWT_SECRET \
+        --env JWT_ISSUER=home-api \
+        --env JWT_AUDIENCE=home-api-api \
+        --env AUTH_ACCESS_TOKEN_TTL=15m \
+        --env AUTH_REFRESH_TOKEN_TTL=720h \
+        "$image_latest"
+
+      apk add --no-cache curl
+      for attempt in $(seq 1 20); do
+        if curl -fsS "http://127.0.0.1:$app_port/api/healthz" >/dev/null; then
+          docker rm -f "$previous_name" 2>/dev/null || true
+          docker ps --filter "name=^/${container_name}$"
+          exit 0
+        fi
+        sleep 2
+      done
+
+      docker logs --tail 100 "$container_name"
+      docker rm -f "$container_name"
+      if docker inspect "$previous_name" >/dev/null 2>&1; then
+        docker rename "$previous_name" "$container_name"
+        docker start "$container_name"
+      fi
+      exit 1
+    when:
+      - event: push
+        branch: ${CI_REPO_DEFAULT_BRANCH}
