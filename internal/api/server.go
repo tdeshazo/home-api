@@ -48,6 +48,7 @@ func (s *Server) Routes() http.Handler {
 	public("GET /tasks/dashboard", s.taskDashboardFrontend)
 	public("GET /tasks", s.tasksFrontend)
 	publicHandler("GET /assets/", http.StripPrefix("/assets/", frontendAssets()))
+
 	public("GET /api/healthz", s.healthz)
 	public("POST /api/auth/register", s.register)
 	public("POST /api/auth/login", s.login)
