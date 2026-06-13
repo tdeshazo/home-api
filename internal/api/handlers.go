@@ -19,6 +19,7 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 	user, ok := userFromContext(r.Context())
 	if !ok {
+		SetLogError(r.Context(), errors.New("missing user context"))
 		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
@@ -29,6 +30,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 func (s *Server) createPost(w http.ResponseWriter, r *http.Request) {
 	user, ok := userFromContext(r.Context())
 	if !ok {
+		SetLogError(r.Context(), errors.New("missing user context"))
 		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
@@ -37,12 +39,14 @@ func (s *Server) createPost(w http.ResponseWriter, r *http.Request) {
 		Body string `json:"body"`
 	}
 	if err := decodeJSON(r, &input); err != nil {
+		SetLogError(r.Context(), err)
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 
 	input.Body = strings.TrimSpace(input.Body)
 	if input.Body == "" || len(input.Body) > 280 {
+		SetLogError(r.Context(), errors.New("post body length out of range"))
 		writeError(w, http.StatusBadRequest, "body must be between 1 and 280 characters")
 		return
 	}
@@ -52,6 +56,7 @@ func (s *Server) createPost(w http.ResponseWriter, r *http.Request) {
 		Body:   input.Body,
 	})
 	if err != nil {
+		SetLogError(r.Context(), err)
 		writeError(w, http.StatusInternalServerError, "could not create post")
 		return
 	}
@@ -67,6 +72,7 @@ func (s *Server) getPost(w http.ResponseWriter, r *http.Request) {
 
 	post, err := s.queries.GetPost(r.Context(), postID)
 	if err != nil {
+		SetLogError(r.Context(), err)
 		handleDBError(w, err, "post not found")
 		return
 	}
@@ -78,6 +84,7 @@ func (s *Server) listPosts(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimit(r, 50)
 	posts, err := s.queries.ListPosts(r.Context(), limit)
 	if err != nil {
+		SetLogError(r.Context(), err)
 		writeError(w, http.StatusInternalServerError, "could not list posts")
 		return
 	}
@@ -97,6 +104,7 @@ func (s *Server) listPostsByUser(w http.ResponseWriter, r *http.Request) {
 		Limit:  limit,
 	})
 	if err != nil {
+		SetLogError(r.Context(), err)
 		writeError(w, http.StatusInternalServerError, "could not list posts")
 		return
 	}
@@ -107,6 +115,7 @@ func (s *Server) listPostsByUser(w http.ResponseWriter, r *http.Request) {
 func (s *Server) listMyPosts(w http.ResponseWriter, r *http.Request) {
 	user, ok := userFromContext(r.Context())
 	if !ok {
+		SetLogError(r.Context(), errors.New("missing user context"))
 		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
@@ -117,6 +126,7 @@ func (s *Server) listMyPosts(w http.ResponseWriter, r *http.Request) {
 		Limit:  limit,
 	})
 	if err != nil {
+		SetLogError(r.Context(), err)
 		writeError(w, http.StatusInternalServerError, "could not list posts")
 		return
 	}
@@ -127,6 +137,7 @@ func (s *Server) listMyPosts(w http.ResponseWriter, r *http.Request) {
 func (s *Server) updatePost(w http.ResponseWriter, r *http.Request) {
 	user, ok := userFromContext(r.Context())
 	if !ok {
+		SetLogError(r.Context(), errors.New("missing user context"))
 		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
@@ -140,12 +151,14 @@ func (s *Server) updatePost(w http.ResponseWriter, r *http.Request) {
 		Body string `json:"body"`
 	}
 	if err := decodeJSON(r, &input); err != nil {
+		SetLogError(r.Context(), err)
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 
 	input.Body = strings.TrimSpace(input.Body)
 	if input.Body == "" || len(input.Body) > 280 {
+		SetLogError(r.Context(), errors.New("post body length out of range"))
 		writeError(w, http.StatusBadRequest, "body must be between 1 and 280 characters")
 		return
 	}
@@ -156,6 +169,7 @@ func (s *Server) updatePost(w http.ResponseWriter, r *http.Request) {
 		Body:   input.Body,
 	})
 	if err != nil {
+		SetLogError(r.Context(), err)
 		handleDBError(w, err, "post not found or not owned by user")
 		return
 	}
@@ -166,6 +180,7 @@ func (s *Server) updatePost(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deletePost(w http.ResponseWriter, r *http.Request) {
 	user, ok := userFromContext(r.Context())
 	if !ok {
+		SetLogError(r.Context(), errors.New("missing user context"))
 		writeError(w, http.StatusUnauthorized, "missing user context")
 		return
 	}
@@ -180,6 +195,7 @@ func (s *Server) deletePost(w http.ResponseWriter, r *http.Request) {
 		UserID: user.ID,
 	})
 	if err != nil {
+		SetLogError(r.Context(), err)
 		writeError(w, http.StatusInternalServerError, "could not delete post")
 		return
 	}
@@ -191,6 +207,7 @@ func parsePathUUID(w http.ResponseWriter, r *http.Request, name string) (uuid.UU
 	value := r.PathValue(name)
 	id, err := uuid.Parse(value)
 	if err != nil {
+		SetLogError(r.Context(), err)
 		writeError(w, http.StatusBadRequest, "invalid "+name)
 		return uuid.Nil, false
 	}

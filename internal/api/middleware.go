@@ -1,13 +1,23 @@
 package api
 
 import (
+	"context"
+	"crypto/rand"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 )
 
 type Middleware func(http.Handler) http.Handler
+
+const (
+	logContextKey contextKey = "log_context"
+	requestIDKey  contextKey = "request_id"
+)
 
 func chain(h http.Handler, middlewares ...Middleware) http.Handler {
 	for i := len(middlewares) - 1; i >= 0; i-- {
@@ -16,34 +26,154 @@ func chain(h http.Handler, middlewares ...Middleware) http.Handler {
 	return h
 }
 
+// LogContext holds request-scoped values that should be included in access logs.
+type LogContext struct {
+	Username string
+	Error    error
+}
+
+// SetLogError attaches an error to the request log entry, when request logging is enabled.
+func SetLogError(ctx context.Context, err error) {
+	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
+		logCtx.Error = err
+	}
+}
+
+// SetLogUsername attaches an authenticated username to the request log entry.
+func SetLogUsername(ctx context.Context, username string) {
+	if logCtx, ok := ctx.Value(logContextKey).(*LogContext); ok {
+		logCtx.Username = username
+	}
+}
+
+// RequestIDFromContext returns the request ID assigned by middleware.
+func RequestIDFromContext(ctx context.Context) string {
+	requestID, _ := ctx.Value(requestIDKey).(string)
+	return requestID
+}
+
+func requestIDMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestID := r.Header.Get("X-Request-ID")
+		if requestID == "" {
+			requestID = rand.Text()
+		}
+
+		w.Header().Set("X-Request-ID", requestID)
+		ctx := context.WithValue(r.Context(), requestIDKey, requestID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
+	bytesWritten int
+	status       int
+}
+
+func (r *statusRecorder) Write(p []byte) (int, error) {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	n, err := r.ResponseWriter.Write(p)
+	r.bytesWritten += n
+	return n, err
 }
 
 func (r *statusRecorder) WriteHeader(status int) {
+	if r.status != 0 {
+		return
+	}
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
 }
 
+type bodyRecorder struct {
+	io.ReadCloser
+	bytesRead int
+}
+
+func (r *bodyRecorder) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	r.bytesRead += n
+	return n, err
+}
+
 func loggingMiddleware(logger *slog.Logger) Middleware {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+			logCtx := &LogContext{}
+			r = r.WithContext(context.WithValue(r.Context(), logContextKey, logCtx))
+
+			body := &bodyRecorder{ReadCloser: r.Body}
+			recorder := &statusRecorder{ResponseWriter: w}
+			r.Body = body
 
 			next.ServeHTTP(recorder, r)
 
-			logger.InfoContext(
-				r.Context(),
-				"request completed",
+			if recorder.status == 0 {
+				recorder.status = http.StatusOK
+			}
+
+			attrs := []any{
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
-				slog.Int("status", recorder.status),
+				slog.String("client_ip", r.RemoteAddr),
 				slog.Duration("duration", time.Since(start)),
-				slog.String("remote_addr", r.RemoteAddr),
+				slog.Int("request_body_bytes", body.bytesRead),
+				slog.Int("response_status", recorder.status),
+				slog.Int("response_body_bytes", recorder.bytesWritten),
+				slog.String("request_id", RequestIDFromContext(r.Context())),
 				slog.String("user_agent", r.UserAgent()),
+			}
+			if logCtx.Username != "" {
+				attrs = append(attrs, slog.String("user", logCtx.Username))
+			}
+			if logCtx.Error != nil {
+				attrs = append(attrs, slog.Any("error", logCtx.Error))
+			}
+
+			logger.InfoContext(
+				r.Context(),
+				"served request",
+				attrs...,
 			)
+		})
+	}
+}
+
+func recoverMiddleware(logger *slog.Logger) Middleware {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					err := fmt.Errorf("panic: %v", rec)
+					SetLogError(r.Context(), err)
+
+					logger.ErrorContext(
+						r.Context(),
+						"panic recovered",
+						slog.Any("error", err),
+						slog.String("stack", string(debug.Stack())),
+						slog.String("request_id", RequestIDFromContext(r.Context())),
+					)
+
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = io.WriteString(w, `{"error":"an unexpected error occurred"}`+"\n")
+				}
+			}()
+
+			next.ServeHTTP(w, r)
 		})
 	}
 }
@@ -53,29 +183,35 @@ func authMiddleware(auth Authenticator) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
+				SetLogError(r.Context(), fmt.Errorf("missing Authorization header"))
 				writeError(w, http.StatusUnauthorized, "missing Authorization header")
 				return
 			}
 
 			const prefix = "Bearer "
 			if !strings.HasPrefix(authHeader, prefix) {
+				SetLogError(r.Context(), fmt.Errorf("expected Authorization: Bearer <token>"))
 				writeError(w, http.StatusUnauthorized, "expected Authorization: Bearer <token>")
 				return
 			}
 
 			bearerToken := strings.TrimSpace(strings.TrimPrefix(authHeader, prefix))
 			if bearerToken == "" {
+				SetLogError(r.Context(), fmt.Errorf("empty bearer token"))
 				writeError(w, http.StatusUnauthorized, "empty bearer token")
 				return
 			}
 
 			user, err := auth.Authenticate(r.Context(), bearerToken)
 			if err != nil {
+				SetLogError(r.Context(), err)
 				writeError(w, http.StatusUnauthorized, "invalid or expired token")
 				return
 			}
 
-			next.ServeHTTP(w, r.WithContext(contextWithUser(r.Context(), user)))
+			ctx := contextWithUser(r.Context(), user)
+			SetLogUsername(ctx, user.Handle)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
