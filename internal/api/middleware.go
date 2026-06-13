@@ -182,13 +182,6 @@ func recoverMiddleware(logger *slog.Logger) Middleware {
 func authMiddleware(auth Authenticator) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
-				SetLogError(r.Context(), fmt.Errorf("missing Authorization header"))
-				writeError(w, http.StatusUnauthorized, "missing Authorization header")
-				return
-			}
-
 			user, err := authenticateRequest(r.Context(), auth, r.Header)
 			if err != nil {
 				SetLogError(r.Context(), err)
@@ -204,22 +197,39 @@ func authMiddleware(auth Authenticator) Middleware {
 }
 
 func authenticateRequest(ctx context.Context, authenticator Authenticator, headers http.Header) (db.User, error) {
+	var bearerAuthErr error
 	bearerToken, bearerErr := authpkg.GetBearerToken(headers)
 	if bearerErr == nil {
 		if bearerToken == "" {
 			return db.User{}, fmt.Errorf("empty bearer token")
 		}
-		return authenticator.Authenticate(ctx, bearerToken)
+		user, err := authenticator.Authenticate(ctx, bearerToken)
+		if err == nil {
+			return user, nil
+		}
+		bearerAuthErr = err
 	}
 
 	apiKey, apiKeyErr := authpkg.GetAPIKey(headers)
 	if apiKeyErr == nil {
-		apiKeyAuth, ok := authenticator.(apiKeyAuthenticator)
-		if !ok {
-			return db.User{}, fmt.Errorf("api key authentication is not configured")
-		}
-		return apiKeyAuth.AuthenticateAPIKey(ctx, apiKey)
+		return authenticateAPIKeyRequest(ctx, authenticator, apiKey)
 	}
 
-	return db.User{}, fmt.Errorf("expected Authorization: Bearer <token> or ApiKey <key>")
+	if bearerAuthErr != nil {
+		user, err := authenticateAPIKeyRequest(ctx, authenticator, bearerToken)
+		if err == nil {
+			return user, nil
+		}
+		return db.User{}, bearerAuthErr
+	}
+
+	return db.User{}, fmt.Errorf("expected Authorization: Bearer <token>, Authorization: ApiKey <key>, or X-API-Key")
+}
+
+func authenticateAPIKeyRequest(ctx context.Context, authenticator Authenticator, apiKey string) (db.User, error) {
+	apiKeyAuth, ok := authenticator.(apiKeyAuthenticator)
+	if !ok {
+		return db.User{}, fmt.Errorf("api key authentication is not configured")
+	}
+	return apiKeyAuth.AuthenticateAPIKey(ctx, apiKey)
 }

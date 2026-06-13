@@ -196,10 +196,13 @@ curl -X POST http://localhost:8080/api-keys \
   -d '{"name":"CLI"}'
 ```
 
-The raw key is returned only once in the `key` field. Use it on protected routes with:
+The raw key is returned only once in the `key` field, along with an `authorization_header` value that can be copied directly. Protected routes accept any of these forms:
 
 ```text
+Authorization: Bearer <key>
 Authorization: ApiKey <key>
+Authorization: Api-Key <key>
+X-API-Key: <key>
 ```
 
 Generate a local test JWT:

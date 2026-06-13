@@ -108,7 +108,7 @@ func TestAuthorizationHeaders(t *testing.T) {
 		t.Fatalf("expected missing bearer token error, got %v", err)
 	}
 
-	headers.Set("Authorization", "Bearer access-token")
+	headers.Set("Authorization", "bearer access-token")
 	bearer, err := auth.GetBearerToken(headers)
 	if err != nil {
 		t.Fatalf("get bearer token: %v", err)
@@ -129,6 +129,25 @@ func TestAuthorizationHeaders(t *testing.T) {
 	}
 	if apiKey != "api-key" {
 		t.Fatalf("expected api key, got %q", apiKey)
+	}
+
+	headers.Set("Authorization", "Api-Key api-key")
+	apiKey, err = auth.GetAPIKey(headers)
+	if err != nil {
+		t.Fatalf("get hyphenated api key: %v", err)
+	}
+	if apiKey != "api-key" {
+		t.Fatalf("expected api key, got %q", apiKey)
+	}
+
+	headers.Del("Authorization")
+	headers.Set("X-API-Key", "header-api-key")
+	apiKey, err = auth.GetAPIKey(headers)
+	if err != nil {
+		t.Fatalf("get x-api-key: %v", err)
+	}
+	if apiKey != "header-api-key" {
+		t.Fatalf("expected x-api-key, got %q", apiKey)
 	}
 }
 

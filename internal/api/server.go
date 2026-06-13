@@ -31,23 +31,28 @@ func (s *Server) Routes() http.Handler {
 	recoverPanics := recoverMiddleware(s.logger)
 	requireAuth := authMiddleware(s.auth)
 	common := []Middleware{requestID, logRequests, recoverPanics}
+	public := func(pattern string, h http.HandlerFunc) {
+		mux.Handle(pattern, chain(h, common...))
+	}
+	protected := func(pattern string, h http.HandlerFunc) {
+		mux.Handle(pattern, chain(h, append(common, requireAuth)...))
+	}
 
-	mux.Handle("GET /healthz", chain(http.HandlerFunc(s.healthz), common...))
-	mux.Handle("POST /auth/register", chain(http.HandlerFunc(s.register), common...))
-	mux.Handle("POST /auth/login", chain(http.HandlerFunc(s.login), common...))
-	mux.Handle("POST /auth/refresh", chain(http.HandlerFunc(s.refresh), common...))
-	mux.Handle("POST /auth/logout", chain(http.HandlerFunc(s.logout), common...))
+	public("GET /healthz", s.healthz)
+	public("POST /auth/register", s.register)
+	public("POST /auth/login", s.login)
+	public("POST /auth/refresh", s.refresh)
+	public("POST /auth/logout", s.logout)
+	public("GET /posts", s.listPosts)
+	public("GET /posts/{id}", s.getPost)
+	public("GET /users/{userID}/posts", s.listPostsByUser)
 
-	mux.Handle("GET /posts", chain(http.HandlerFunc(s.listPosts), common...))
-	mux.Handle("GET /posts/{id}", chain(http.HandlerFunc(s.getPost), common...))
-	mux.Handle("GET /users/{userID}/posts", chain(http.HandlerFunc(s.listPostsByUser), common...))
-
-	mux.Handle("GET /me", chain(http.HandlerFunc(s.me), append(common, requireAuth)...))
-	mux.Handle("POST /api-keys", chain(http.HandlerFunc(s.createAPIKey), append(common, requireAuth)...))
-	mux.Handle("GET /me/posts", chain(http.HandlerFunc(s.listMyPosts), append(common, requireAuth)...))
-	mux.Handle("POST /posts", chain(http.HandlerFunc(s.createPost), append(common, requireAuth)...))
-	mux.Handle("PATCH /posts/{id}", chain(http.HandlerFunc(s.updatePost), append(common, requireAuth)...))
-	mux.Handle("DELETE /posts/{id}", chain(http.HandlerFunc(s.deletePost), append(common, requireAuth)...))
+	protected("GET /me", s.me)
+	protected("POST /api-keys", s.createAPIKey)
+	protected("GET /me/posts", s.listMyPosts)
+	protected("POST /posts", s.createPost)
+	protected("PATCH /posts/{id}", s.updatePost)
+	protected("DELETE /posts/{id}", s.deletePost)
 
 	return mux
 }

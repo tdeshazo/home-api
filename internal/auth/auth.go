@@ -175,7 +175,7 @@ func GetBearerToken(headers http.Header) (string, error) {
 		return "", ErrNoAuthHeaderIncluded
 	}
 	splitAuth := strings.Fields(authHeader)
-	if len(splitAuth) != 2 || splitAuth[0] != "Bearer" {
+	if len(splitAuth) != 2 || !strings.EqualFold(splitAuth[0], "Bearer") {
 		return "", errors.New("malformed authorization header")
 	}
 
@@ -192,16 +192,24 @@ func MakeRefreshToken() (string, error) {
 }
 
 func GetAPIKey(headers http.Header) (string, error) {
+	if apiKey := strings.TrimSpace(headers.Get("X-API-Key")); apiKey != "" {
+		return apiKey, nil
+	}
+
 	authHeader := headers.Get("Authorization")
 	if authHeader == "" {
 		return "", ErrNoAuthHeaderIncluded
 	}
 	splitAuth := strings.Fields(authHeader)
-	if len(splitAuth) != 2 || splitAuth[0] != "ApiKey" {
+	if len(splitAuth) != 2 || !isAPIKeyScheme(splitAuth[0]) {
 		return "", errors.New("malformed authorization header")
 	}
 
 	return splitAuth[1], nil
+}
+
+func isAPIKeyScheme(scheme string) bool {
+	return strings.EqualFold(scheme, "ApiKey") || strings.EqualFold(scheme, "Api-Key")
 }
 
 func encodeJWTPart(value any) (string, error) {

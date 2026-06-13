@@ -31,8 +31,9 @@ type apiKeyResponse struct {
 }
 
 type createAPIKeyResponse struct {
-	APIKey apiKeyResponse `json:"api_key"`
-	Key    string         `json:"key"`
+	APIKey              apiKeyResponse `json:"api_key"`
+	Key                 string         `json:"key"`
+	AuthorizationHeader string         `json:"authorization_header"`
 }
 
 func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
@@ -97,8 +98,9 @@ func (s *Server) issueAPIKey(ctx context.Context, userID uuid.UUID, name string)
 		}
 
 		return createAPIKeyResponse{
-			APIKey: publicAPIKey(row),
-			Key:    key,
+			APIKey:              publicAPIKey(row),
+			Key:                 key,
+			AuthorizationHeader: "Authorization: Bearer " + key,
 		}, nil
 	}
 
