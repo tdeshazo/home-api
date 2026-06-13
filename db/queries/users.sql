@@ -13,8 +13,19 @@ SELECT *
 FROM users
 WHERE email = $1;
 
+-- name: ListUsers :many
+SELECT *
+FROM users
+ORDER BY display_name ASC, handle ASC;
+
 -- name: UpdateUserPoints :one
 UPDATE users
 SET points = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: AddUserPoints :one
+UPDATE users
+SET points = points + $2
 WHERE id = $1
 RETURNING *;

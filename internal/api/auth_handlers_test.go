@@ -114,7 +114,7 @@ func TestAuthHandlersMapErrors(t *testing.T) {
 	}{
 		{
 			name:       "register duplicate",
-			path:       "/auth/register",
+			path:       "/api/auth/register",
 			body:       `{"email":"user@example.com","handle":"user_1","display_name":"User One","password":"password123"}`,
 			wantStatus: http.StatusConflict,
 			wantBody:   "email or handle already exists",
@@ -126,7 +126,7 @@ func TestAuthHandlersMapErrors(t *testing.T) {
 		},
 		{
 			name:       "login invalid credentials",
-			path:       "/auth/login",
+			path:       "/api/auth/login",
 			body:       `{"email":"user@example.com","password":"password123"}`,
 			wantStatus: http.StatusUnauthorized,
 			wantBody:   "invalid email or password",
@@ -138,7 +138,7 @@ func TestAuthHandlersMapErrors(t *testing.T) {
 		},
 		{
 			name:       "refresh invalid token",
-			path:       "/auth/refresh",
+			path:       "/api/auth/refresh",
 			body:       `{"refresh_token":""}`,
 			wantStatus: http.StatusUnauthorized,
 			wantBody:   "invalid refresh token",
@@ -150,7 +150,7 @@ func TestAuthHandlersMapErrors(t *testing.T) {
 		},
 		{
 			name:       "auth unavailable",
-			path:       "/auth/login",
+			path:       "/api/auth/login",
 			body:       `{"email":"user@example.com","password":"password123"}`,
 			wantStatus: http.StatusServiceUnavailable,
 			wantBody:   "authentication is not configured",
@@ -169,11 +169,11 @@ func TestAuthHandlersMapErrors(t *testing.T) {
 			rec := httptest.NewRecorder()
 
 			switch tt.path {
-			case "/auth/register":
+			case "/api/auth/register":
 				server.register(rec, req)
-			case "/auth/login":
+			case "/api/auth/login":
 				server.login(rec, req)
-			case "/auth/refresh":
+			case "/api/auth/refresh":
 				server.refresh(rec, req)
 			default:
 				t.Fatalf("unknown path %s", tt.path)
@@ -215,7 +215,7 @@ func TestAuthHandlersSuccess(t *testing.T) {
 				return response, nil
 			},
 		}}
-		req := httptest.NewRequest(http.MethodPost, "/auth/register", strings.NewReader(`{"email":" USER@example.com ","handle":"user_1","display_name":" User One ","password":"password123"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/register", strings.NewReader(`{"email":" USER@example.com ","handle":"user_1","display_name":" User One ","password":"password123"}`))
 		rec := httptest.NewRecorder()
 
 		server.register(rec, req)
@@ -240,7 +240,7 @@ func TestAuthHandlersSuccess(t *testing.T) {
 				return response, nil
 			},
 		}}
-		req := httptest.NewRequest(http.MethodPost, "/auth/refresh", strings.NewReader(`{"refresh_token":"refresh-1"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", strings.NewReader(`{"refresh_token":"refresh-1"}`))
 		rec := httptest.NewRecorder()
 
 		server.refresh(rec, req)
@@ -262,7 +262,7 @@ func TestAuthHandlersSuccess(t *testing.T) {
 				return nil
 			},
 		}}
-		req := httptest.NewRequest(http.MethodPost, "/auth/logout", bytes.NewBufferString(`{"refresh_token":""}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", bytes.NewBufferString(`{"refresh_token":""}`))
 		rec := httptest.NewRecorder()
 
 		server.logout(rec, req)

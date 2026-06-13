@@ -41,6 +41,8 @@ type userResponse struct {
 	Email       string    `json:"email"`
 	Handle      string    `json:"handle"`
 	DisplayName string    `json:"display_name"`
+	Points      int32     `json:"points"`
+	IsAdmin     bool      `json:"is_admin"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -51,6 +53,8 @@ func publicUser(user db.User) userResponse {
 		Email:       user.Email,
 		Handle:      user.Handle,
 		DisplayName: user.DisplayName,
+		Points:      user.Points,
+		IsAdmin:     user.IsAdmin,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 	}

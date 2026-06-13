@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Home API</title>
+    <title>Tasks | Home API</title>
     <link rel="icon" href="/assets/mark.svg" />
     <link rel="stylesheet" href="/assets/app.css" />
   </head>
@@ -16,8 +16,8 @@
         </a>
         <div class="topbar-actions">
           <nav class="topnav" aria-label="Primary">
-            <a href="/posts" aria-current="page">Posts</a>
-            <a href="/tasks">Tasks</a>
+            <a href="/posts">Posts</a>
+            <a href="/tasks" aria-current="page">Tasks</a>
             <a href="/tasks/dashboard">Dashboard</a>
           </nav>
           <button class="icon-action" type="button" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
@@ -86,43 +86,62 @@
           <p class="status-line" id="authStatus" role="status"></p>
         </section>
 
-        <section class="timeline-panel" aria-labelledby="timelineTitle">
+        <section class="timeline-panel" aria-labelledby="tasksTitle">
           <div class="panel-head timeline-head">
             <div>
-              <h2 id="timelineTitle">Timeline</h2>
-              <p id="timelineMeta"></p>
+              <h2 id="tasksTitle">Tasks</h2>
+              <p id="tasksMeta"></p>
             </div>
-            <button class="secondary-action" type="button" id="refreshPosts">Refresh</button>
+            <button class="secondary-action" type="button" id="refreshTasks">Refresh</button>
           </div>
 
-          <form class="composer" id="postForm">
+          <form class="composer task-composer" id="taskForm">
             <label>
-              New post
-              <textarea name="body" maxlength="280" rows="4" required></textarea>
+              New task
+              <input name="title" type="text" maxlength="200" required />
             </label>
+            <div class="task-settings-grid">
+              <label>
+                Frequency
+                <select name="frequency_kind">
+                  <option value="daily" selected>Daily</option>
+                  <option value="weekly">Weekly</option>
+                </select>
+              </label>
+              <label>
+                Points
+                <input name="point_value" type="number" min="0" step="1" value="0" required />
+              </label>
+            </div>
+            <fieldset class="choice-group is-hidden" id="weeklyDays">
+              <legend>Days</legend>
+              <label class="check-option"><input type="checkbox" name="days_of_week" value="1" /> Mon</label>
+              <label class="check-option"><input type="checkbox" name="days_of_week" value="2" /> Tue</label>
+              <label class="check-option"><input type="checkbox" name="days_of_week" value="3" /> Wed</label>
+              <label class="check-option"><input type="checkbox" name="days_of_week" value="4" /> Thu</label>
+              <label class="check-option"><input type="checkbox" name="days_of_week" value="5" /> Fri</label>
+              <label class="check-option"><input type="checkbox" name="days_of_week" value="6" /> Sat</label>
+              <label class="check-option"><input type="checkbox" name="days_of_week" value="7" /> Sun</label>
+            </fieldset>
+            <fieldset class="choice-group">
+              <legend>Assignees</legend>
+              <div class="assignee-grid" id="assignees"></div>
+            </fieldset>
+            <div class="toggle-row">
+              <label class="check-option"><input type="checkbox" name="is_active" checked /> Active</label>
+              <label class="check-option"><input type="checkbox" name="individual" /> Individual</label>
+            </div>
             <div class="composer-actions">
-              <span id="postCounter">0/280</span>
-              <div class="action-group">
-                <div class="emoji-control" data-emoji-control>
-                  <button class="icon-action" type="button" data-action="toggle-emoji" aria-label="Open emoji selector" aria-expanded="false">🙂</button>
-                  <div class="emoji-popover is-hidden" data-emoji-popover></div>
-                </div>
-                <button class="primary-action" type="submit">Post</button>
-              </div>
+              <span id="taskCounter">0/200</span>
+              <button class="primary-action" type="submit">Add task</button>
             </div>
           </form>
 
-          <div class="timeline-list" id="postsList" aria-live="polite"></div>
-
-          <div class="pager">
-            <button class="secondary-action" type="button" id="prevPage">Previous</button>
-            <span id="pageSummary"></span>
-            <button class="secondary-action" type="button" id="nextPage">Next</button>
-          </div>
+          <div class="tasks-list" id="tasksList" aria-live="polite"></div>
         </section>
       </main>
     </div>
 
-    <script src="/assets/app.js" type="module"></script>
+    <script src="/assets/tasks.js" type="module"></script>
   </body>
 </html>

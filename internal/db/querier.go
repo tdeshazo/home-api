@@ -6,26 +6,34 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type Querier interface {
+	AddUserPoints(ctx context.Context, arg AddUserPointsParams) (User, error)
 	AvailableTasks(ctx context.Context, arg AvailableTasksParams) ([]Task, error)
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (CreateAPIKeyRow, error)
 	CreatePost(ctx context.Context, arg CreatePostParams) (Post, error)
 	CreateReply(ctx context.Context, arg CreateReplyParams) (Post, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
-	CreateTask(ctx context.Context, title string) (Task, error)
+	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	AssignTask(ctx context.Context, arg AssignTaskParams) error
+	CompleteTask(ctx context.Context, arg CompleteTaskParams) (CompleteTaskRow, error)
+	CompletedTasks(ctx context.Context, arg CompletedTasksParams) ([]CompletedTasksRow, error)
 	DeletePostForUser(ctx context.Context, arg DeletePostForUserParams) error
 	DeleteTask(ctx context.Context, id uuid.UUID) (int64, error)
+	DeleteTaskAssignments(ctx context.Context, taskID uuid.UUID) error
 	GetPost(ctx context.Context, id uuid.UUID) (Post, error)
 	GetPostForUser(ctx context.Context, arg GetPostForUserParams) (Post, error)
 	GetRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error)
 	GetTask(ctx context.Context, id uuid.UUID) (Task, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
+	ListAvailableTaskAssignees(ctx context.Context, column1 time.Time) ([]User, error)
+	ListUsers(ctx context.Context) ([]User, error)
 	ListPosts(ctx context.Context, arg ListPostsParams) ([]ListPostsRow, error)
 	ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]ListPostsByUserRow, error)
 	ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]ListPostRepliesRow, error)

@@ -157,16 +157,16 @@ This scaffold validates HS256 JWTs where the `sub` claim is the user UUID. For a
 Auth endpoints are available only when `AUTH_MODE=jwt` and JWT config is set. They return JSON access and refresh tokens:
 
 ```text
-POST /auth/register
-POST /auth/login
-POST /auth/refresh
-POST /auth/logout
+POST /api/auth/register
+POST /api/auth/login
+POST /api/auth/refresh
+POST /api/auth/logout
 ```
 
 Register:
 
 ```bash
-curl -X POST http://localhost:8080/auth/register \
+curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"new@example.com","handle":"new_user","display_name":"New User","password":"password123"}'
 ```
@@ -174,7 +174,7 @@ curl -X POST http://localhost:8080/auth/register \
 Login:
 
 ```bash
-curl -X POST http://localhost:8080/auth/login \
+curl -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"new@example.com","password":"password123"}'
 ```
@@ -190,7 +190,7 @@ Refresh and logout both accept:
 Authenticated users can issue API keys:
 
 ```bash
-curl -X POST http://localhost:8080/api-keys \
+curl -X POST http://localhost:8080/api/api-keys \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"name":"CLI"}'
@@ -222,7 +222,7 @@ Then call the API:
 ```bash
 TOKEN="paste-generated-token-here"
 
-curl   -H "Authorization: Bearer $TOKEN"   http://localhost:8080/me
+curl   -H "Authorization: Bearer $TOKEN"   http://localhost:8080/api/me
 ```
 
 ## Example requests
@@ -230,13 +230,13 @@ curl   -H "Authorization: Bearer $TOKEN"   http://localhost:8080/me
 Health check:
 
 ```bash
-curl http://localhost:8080/healthz
+curl http://localhost:8080/api/healthz
 ```
 
 List public posts:
 
 ```bash
-curl http://localhost:8080/posts
+curl http://localhost:8080/api/posts
 ```
 
 Read the authenticated user:
@@ -244,13 +244,13 @@ Read the authenticated user:
 ```bash
 curl \
   -H "Authorization: Bearer dev:00000000-0000-0000-0000-000000000001" \
-  http://localhost:8080/me
+  http://localhost:8080/api/me
 ```
 
 Create a post as Alice:
 
 ```bash
-curl -X POST http://localhost:8080/posts \
+curl -X POST http://localhost:8080/api/posts \
   -H "Authorization: Bearer dev:00000000-0000-0000-0000-000000000001" \
   -H "Content-Type: application/json" \
   -d '{"body":"Hello from Alice"}'
@@ -259,7 +259,7 @@ curl -X POST http://localhost:8080/posts \
 Update Alice's seeded post as Alice:
 
 ```bash
-curl -X PATCH http://localhost:8080/posts/10000000-0000-0000-0000-000000000001 \
+curl -X PATCH http://localhost:8080/api/posts/10000000-0000-0000-0000-000000000001 \
   -H "Authorization: Bearer dev:00000000-0000-0000-0000-000000000001" \
   -H "Content-Type: application/json" \
   -d '{"body":"Alice updated her own post"}'
@@ -268,7 +268,7 @@ curl -X PATCH http://localhost:8080/posts/10000000-0000-0000-0000-000000000001 \
 Try to update Alice's post as Bob:
 
 ```bash
-curl -X PATCH http://localhost:8080/posts/10000000-0000-0000-0000-000000000001 \
+curl -X PATCH http://localhost:8080/api/posts/10000000-0000-0000-0000-000000000001 \
   -H "Authorization: Bearer dev:00000000-0000-0000-0000-000000000002" \
   -H "Content-Type: application/json" \
   -d '{"body":"Bob should not be allowed"}'

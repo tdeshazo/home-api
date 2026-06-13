@@ -113,7 +113,7 @@ async function handleLogin(event) {
   const form = new FormData(els.loginForm);
   setAuthStatus("Logging in...");
   try {
-    const response = await apiFetch("/auth/login", {
+    const response = await apiFetch("/api/auth/login", {
       method: "POST",
       body: {
         email: form.get("email"),
@@ -134,7 +134,7 @@ async function handleRegister(event) {
   const form = new FormData(els.registerForm);
   setAuthStatus("Creating account...");
   try {
-    const response = await apiFetch("/auth/register", {
+    const response = await apiFetch("/api/auth/register", {
       method: "POST",
       body: {
         email: form.get("email"),
@@ -176,7 +176,7 @@ async function handleLogout() {
   const refreshToken = state.session?.refreshToken;
   if (refreshToken) {
     try {
-      await apiFetch("/auth/logout", {
+      await apiFetch("/api/auth/logout", {
         method: "POST",
         body: { refresh_token: refreshToken },
       });
@@ -192,7 +192,7 @@ async function handleLogout() {
 
 async function hydrateCurrentUser() {
   try {
-    const user = await apiFetch("/me", { auth: true });
+    const user = await apiFetch("/api/me", { auth: true });
     state.session = { ...state.session, user };
     writeSession(state.session);
     renderSession();
@@ -228,7 +228,7 @@ async function handleCreatePost(event) {
 
   els.postForm.querySelector("button").disabled = true;
   try {
-    await apiFetch("/posts", {
+    await apiFetch("/api/posts", {
       method: "POST",
       auth: true,
       body: { body },
@@ -251,7 +251,7 @@ async function loadPosts() {
       limit: String(state.limit + 1),
       offset: String(state.offset),
     });
-    const response = await apiFetch(`/posts?${params.toString()}`);
+    const response = await apiFetch(`/api/posts?${params.toString()}`);
     const posts = response.posts ?? [];
     state.hasMore = posts.length > state.limit;
     state.posts = posts.slice(0, state.limit);
@@ -414,7 +414,7 @@ async function handleReplySubmit(event) {
   const button = form.querySelector("button");
   button.disabled = true;
   try {
-    await apiFetch(`/posts/${encodeURIComponent(postID)}/replies`, {
+    await apiFetch(`/api/posts/${encodeURIComponent(postID)}/replies`, {
       method: "POST",
       auth: true,
       body: { body },
@@ -448,7 +448,7 @@ async function loadReplies(postID) {
   renderPosts();
   try {
     const params = new URLSearchParams({ limit: "50", offset: "0" });
-    const response = await apiFetch(`/posts/${encodeURIComponent(postID)}/replies?${params.toString()}`);
+    const response = await apiFetch(`/api/posts/${encodeURIComponent(postID)}/replies?${params.toString()}`);
     replies.items = response.replies ?? [];
     replies.hasLoaded = true;
   } catch (error) {
@@ -552,7 +552,7 @@ async function apiFetch(path, options = {}) {
     headers.set("Authorization", `${state.session.tokenType || "Bearer"} ${state.session.accessToken}`);
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(apiPath(path), {
     method: options.method ?? "GET",
     headers,
     body: options.body ? JSON.stringify(options.body) : undefined,
@@ -566,6 +566,11 @@ async function apiFetch(path, options = {}) {
     throw new Error(payload?.error || `Request failed with status ${response.status}`);
   }
   return payload;
+}
+
+function apiPath(path) {
+  if (path.startsWith("/api/")) return path;
+  return `/api${path}`;
 }
 
 function saveTokenSession(response) {

@@ -7,7 +7,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -77,10 +76,20 @@ func (q *Queries) AvailableTasks(ctx context.Context, arg AvailableTasksParams) 
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (
     id,
-    title
+    title,
+    frequency_kind,
+    days_of_week,
+    point_value,
+    individual,
+    is_active
 ) VALUES (
     gen_random_uuid(),
-    $1
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
 )
 RETURNING
     id,
@@ -94,8 +103,24 @@ RETURNING
     updated_at
 `
 
-func (q *Queries) CreateTask(ctx context.Context, title string) (Task, error) {
-	row := q.db.QueryRowContext(ctx, createTask, title)
+type CreateTaskParams struct {
+	Title         string  `json:"title"`
+	FrequencyKind string  `json:"frequency_kind"`
+	DaysOfWeek    []int16 `json:"days_of_week"`
+	PointValue    int32   `json:"point_value"`
+	Individual    bool    `json:"individual"`
+	IsActive      bool    `json:"is_active"`
+}
+
+func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
+	row := q.db.QueryRowContext(ctx, createTask,
+		arg.Title,
+		arg.FrequencyKind,
+		pq.Array(arg.DaysOfWeek),
+		arg.PointValue,
+		arg.Individual,
+		arg.IsActive,
+	)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -111,8 +136,169 @@ func (q *Queries) CreateTask(ctx context.Context, title string) (Task, error) {
 	return i, err
 }
 
+const assignTask = `-- name: AssignTask :exec
+INSERT INTO task_assignments (task_id, user_id)
+VALUES ($1, $2)
+ON CONFLICT (task_id, user_id) DO NOTHING
+`
+
+type AssignTaskParams struct {
+	TaskID uuid.UUID `json:"task_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) AssignTask(ctx context.Context, arg AssignTaskParams) error {
+	_, err := q.db.ExecContext(ctx, assignTask, arg.TaskID, arg.UserID)
+	return err
+}
+
+const completeTask = `-- name: CompleteTask :one
+WITH task_to_complete AS (
+    SELECT t.id, t.point_value
+    FROM tasks t
+    JOIN task_assignments ta ON ta.task_id = t.id
+    WHERE t.id = $1
+      AND ta.user_id = $2
+      AND t.is_active = true
+      AND (
+          t.frequency_kind = 'daily'
+          OR (
+              t.frequency_kind = 'weekly'
+              AND EXTRACT(ISODOW FROM $3::date)::smallint = ANY(t.days_of_week)
+          )
+      )
+),
+inserted AS (
+    INSERT INTO task_completions (task_id, user_id, completed_on)
+    SELECT id, $2, $3::date
+    FROM task_to_complete
+    ON CONFLICT (task_id, user_id, completed_on) DO NOTHING
+    RETURNING id, task_id, user_id, completed_on, created_at
+)
+SELECT
+    inserted.id,
+    inserted.task_id,
+    inserted.user_id,
+    inserted.completed_on,
+    inserted.created_at,
+    task_to_complete.point_value
+FROM inserted
+JOIN task_to_complete ON task_to_complete.id = inserted.task_id
+`
+
+type CompleteTaskParams struct {
+	TaskID      uuid.UUID `json:"task_id"`
+	UserID      uuid.UUID `json:"user_id"`
+	CompletedOn time.Time `json:"completed_on"`
+}
+
+type CompleteTaskRow struct {
+	ID          uuid.UUID `json:"id"`
+	TaskID      uuid.UUID `json:"task_id"`
+	UserID      uuid.UUID `json:"user_id"`
+	CompletedOn time.Time `json:"completed_on"`
+	CreatedAt   time.Time `json:"created_at"`
+	PointValue  int32     `json:"point_value"`
+}
+
+func (q *Queries) CompleteTask(ctx context.Context, arg CompleteTaskParams) (CompleteTaskRow, error) {
+	row := q.db.QueryRowContext(ctx, completeTask, arg.TaskID, arg.UserID, arg.CompletedOn)
+	var i CompleteTaskRow
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.UserID,
+		&i.CompletedOn,
+		&i.CreatedAt,
+		&i.PointValue,
+	)
+	return i, err
+}
+
+const completedTasks = `-- name: CompletedTasks :many
+SELECT
+    t.id,
+    t.title,
+    t.frequency_kind,
+    t.days_of_week,
+    t.point_value,
+    t.individual,
+    t.is_active,
+    t.created_at,
+    t.updated_at,
+    tc.created_at AS completed_at
+FROM tasks t
+JOIN task_completions tc ON tc.task_id = t.id
+WHERE tc.user_id = $1
+  AND tc.completed_on = $2::date
+ORDER BY tc.created_at ASC, t.title ASC, t.id ASC
+`
+
+type CompletedTasksParams struct {
+	UserID  uuid.UUID `json:"user_id"`
+	Column2 time.Time `json:"column_2"`
+}
+
+type CompletedTasksRow struct {
+	ID            uuid.UUID `json:"id"`
+	Title         string    `json:"title"`
+	FrequencyKind string    `json:"frequency_kind"`
+	DaysOfWeek    []int16   `json:"days_of_week"`
+	PointValue    int32     `json:"point_value"`
+	Individual    bool      `json:"individual"`
+	IsActive      bool      `json:"is_active"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+	CompletedAt   time.Time `json:"completed_at"`
+}
+
+func (q *Queries) CompletedTasks(ctx context.Context, arg CompletedTasksParams) ([]CompletedTasksRow, error) {
+	rows, err := q.db.QueryContext(ctx, completedTasks, arg.UserID, arg.Column2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CompletedTasksRow{}
+	for rows.Next() {
+		var i CompletedTasksRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.FrequencyKind,
+			pq.Array(&i.DaysOfWeek),
+			&i.PointValue,
+			&i.Individual,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deleteTaskAssignments = `-- name: DeleteTaskAssignments :exec
+DELETE FROM task_assignments
+WHERE task_id = $1
+`
+
+func (q *Queries) DeleteTaskAssignments(ctx context.Context, taskID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteTaskAssignments, taskID)
+	return err
+}
+
 const deleteTask = `-- name: DeleteTask :execrows
-DELETE FROM tasks
+UPDATE tasks
+SET is_active = false
 WHERE id = $1
 `
 
@@ -154,6 +340,73 @@ func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (Task, error) {
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listAvailableTaskAssignees = `-- name: ListAvailableTaskAssignees :many
+SELECT DISTINCT
+    u.id,
+    u.email,
+    u.handle,
+    u.display_name,
+    u.password_hash,
+    u.points,
+    u.is_admin,
+    u.created_at,
+    u.updated_at
+FROM users u
+JOIN task_assignments ta ON ta.user_id = u.id
+JOIN tasks t ON t.id = ta.task_id
+WHERE (
+      t.is_active = true
+      AND (
+          t.frequency_kind = 'daily'
+          OR (
+              t.frequency_kind = 'weekly'
+              AND EXTRACT(ISODOW FROM $1::date)::smallint = ANY(t.days_of_week)
+          )
+      )
+  )
+  OR EXISTS (
+      SELECT 1
+      FROM task_completions tc
+      WHERE tc.task_id = t.id
+        AND tc.user_id = ta.user_id
+        AND tc.completed_on = $1::date
+  )
+ORDER BY u.display_name ASC, u.handle ASC
+`
+
+func (q *Queries) ListAvailableTaskAssignees(ctx context.Context, column1 time.Time) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listAvailableTaskAssignees, column1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Handle,
+			&i.DisplayName,
+			&i.PasswordHash,
+			&i.Points,
+			&i.IsAdmin,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listTasks = `-- name: ListTasks :many
@@ -207,8 +460,13 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 const updateTask = `-- name: UpdateTask :one
 UPDATE tasks
 SET
-    title = COALESCE($1, title)
-WHERE id = $2
+    title = $2,
+    frequency_kind = $3,
+    days_of_week = $4,
+    point_value = $5,
+    individual = $6,
+    is_active = $7
+WHERE id = $1
 RETURNING
     id,
     title,
@@ -222,12 +480,25 @@ RETURNING
 `
 
 type UpdateTaskParams struct {
-	Title sql.NullString `json:"title"`
-	ID    uuid.UUID      `json:"id"`
+	ID            uuid.UUID `json:"id"`
+	Title         string    `json:"title"`
+	FrequencyKind string    `json:"frequency_kind"`
+	DaysOfWeek    []int16   `json:"days_of_week"`
+	PointValue    int32     `json:"point_value"`
+	Individual    bool      `json:"individual"`
+	IsActive      bool      `json:"is_active"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
-	row := q.db.QueryRowContext(ctx, updateTask, arg.Title, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateTask,
+		arg.ID,
+		arg.Title,
+		arg.FrequencyKind,
+		pq.Array(arg.DaysOfWeek),
+		arg.PointValue,
+		arg.Individual,
+		arg.IsActive,
+	)
 	var i Task
 	err := row.Scan(
 		&i.ID,

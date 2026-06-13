@@ -11,6 +11,35 @@ import (
 	"github.com/google/uuid"
 )
 
+const addUserPoints = `-- name: AddUserPoints :one
+UPDATE users
+SET points = points + $2
+WHERE id = $1
+RETURNING id, email, handle, display_name, password_hash, points, is_admin, created_at, updated_at
+`
+
+type AddUserPointsParams struct {
+	ID     uuid.UUID `json:"id"`
+	Points int32     `json:"points"`
+}
+
+func (q *Queries) AddUserPoints(ctx context.Context, arg AddUserPointsParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, addUserPoints, arg.ID, arg.Points)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Handle,
+		&i.DisplayName,
+		&i.PasswordHash,
+		&i.Points,
+		&i.IsAdmin,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, handle, display_name, password_hash)
 VALUES ($1, $2, $3, $4)
@@ -90,6 +119,45 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listUsers = `-- name: ListUsers :many
+SELECT id, email, handle, display_name, password_hash, points, is_admin, created_at, updated_at
+FROM users
+ORDER BY display_name ASC, handle ASC
+`
+
+func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Handle,
+			&i.DisplayName,
+			&i.PasswordHash,
+			&i.Points,
+			&i.IsAdmin,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateUserPoints = `-- name: UpdateUserPoints :one

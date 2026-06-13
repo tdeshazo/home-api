@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Task Dashboard | Home API</title>
+    <link rel="icon" href="/assets/mark.svg" />
+    <link rel="stylesheet" href="/assets/app.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/posts" aria-label="Home API">
+          <img src="/assets/mark.svg" alt="" />
+          <span>Home API</span>
+        </a>
+        <div class="topbar-actions">
+          <nav class="topnav" aria-label="Primary">
+            <a href="/posts">Posts</a>
+            <a href="/tasks">Tasks</a>
+            <a href="/tasks/dashboard" aria-current="page">Dashboard</a>
+          </nav>
+          <button class="icon-action" type="button" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+            <span id="themeIcon">◐</span>
+          </button>
+          <div class="session" id="sessionSummary"></div>
+        </div>
+      </header>
+
+      <main class="dashboard-shell">
+        <section class="auth-panel dashboard-auth" aria-labelledby="authTitle">
+          <div class="panel-head">
+            <h1 id="authTitle">Admin</h1>
+            <div class="mode-tabs" role="tablist" aria-label="Authentication mode">
+              <button class="tab is-active" type="button" data-auth-tab="login">Login</button>
+              <button class="tab" type="button" data-auth-tab="dev">Dev</button>
+            </div>
+          </div>
+
+          <form class="auth-form" id="loginForm" data-auth-view="login">
+            <label>
+              Email
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Password
+              <input name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <button class="primary-action" type="submit">Login</button>
+          </form>
+
+          <div class="dev-auth is-hidden" data-auth-view="dev">
+            <button type="button" class="secondary-action" data-dev-user="00000000-0000-0000-0000-000000000001">Alice</button>
+            <label>
+              User UUID
+              <input id="devUserID" type="text" value="00000000-0000-0000-0000-000000000001" />
+            </label>
+            <button class="primary-action" type="button" id="devLogin">Use dev token</button>
+          </div>
+
+          <button class="ghost-action" type="button" id="logoutButton">Logout</button>
+          <p class="status-line" id="authStatus" role="status"></p>
+        </section>
+
+        <section class="dashboard-panel" aria-labelledby="dashboardTitle">
+          <div class="panel-head dashboard-head">
+            <div>
+              <h2 id="dashboardTitle">Today</h2>
+              <p id="dashboardMeta"></p>
+            </div>
+            <button class="secondary-action" type="button" id="refreshDashboard">Refresh</button>
+          </div>
+
+          <div class="assignee-tabs" id="assigneeTabs" role="tablist" aria-label="Assignees"></div>
+          <div class="dashboard-task-list" id="dashboardTasks" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/assets/tasks-dashboard.js" type="module"></script>
+  </body>
+</html>

@@ -9,6 +9,7 @@ import (
 
 type Server struct {
 	queries       *db.Queries
+	txBeginner    txBeginner
 	logger        *slog.Logger
 	auth          Authenticator
 	authEndpoints authEndpointService
@@ -17,6 +18,7 @@ type Server struct {
 func NewServer(queries *db.Queries, txBeginner txBeginner, logger *slog.Logger, auth Authenticator, authConfig AuthConfig) *Server {
 	return &Server{
 		queries:       queries,
+		txBeginner:    txBeginner,
 		logger:        logger,
 		auth:          auth,
 		authEndpoints: newLocalAuthService(queries, txBeginner, authConfig),
@@ -41,25 +43,37 @@ func (s *Server) Routes() http.Handler {
 		mux.Handle(pattern, chain(h, append(common, requireAuth)...))
 	}
 
-	public("GET /", s.frontend)
+	public("GET /{$}", s.frontend)
+	public("GET /posts", s.frontend)
+	public("GET /tasks/dashboard", s.taskDashboardFrontend)
+	public("GET /tasks", s.tasksFrontend)
 	publicHandler("GET /assets/", http.StripPrefix("/assets/", frontendAssets()))
-	public("GET /healthz", s.healthz)
-	public("POST /auth/register", s.register)
-	public("POST /auth/login", s.login)
-	public("POST /auth/refresh", s.refresh)
-	public("POST /auth/logout", s.logout)
-	public("GET /posts", s.listPosts)
-	public("GET /posts/{id}", s.getPost)
-	public("GET /posts/{id}/replies", s.listPostReplies)
-	public("GET /users/{userID}/posts", s.listPostsByUser)
+	public("GET /api/healthz", s.healthz)
+	public("POST /api/auth/register", s.register)
+	public("POST /api/auth/login", s.login)
+	public("POST /api/auth/refresh", s.refresh)
+	public("POST /api/auth/logout", s.logout)
+	public("GET /api/posts", s.listPosts)
+	public("GET /api/posts/{id}", s.getPost)
+	public("GET /api/posts/{id}/replies", s.listPostReplies)
+	public("GET /api/tasks", s.listTasks)
+	public("GET /api/users/{userID}/posts", s.listPostsByUser)
 
-	protected("GET /me", s.me)
-	protected("POST /api-keys", s.createAPIKey)
-	protected("GET /me/posts", s.listMyPosts)
-	protected("POST /posts", s.createPost)
-	protected("POST /posts/{id}/replies", s.createReply)
-	protected("PATCH /posts/{id}", s.updatePost)
-	protected("DELETE /posts/{id}", s.deletePost)
+	protected("GET /api/me", s.me)
+	protected("GET /api/me/tasks", s.listMyDailyTasks)
+	protected("GET /api/users", s.listUsers)
+	protected("GET /api/tasks/dashboard/data", s.taskDashboardData)
+	protected("POST /api/api-keys", s.createAPIKey)
+	protected("GET /api/me/posts", s.listMyPosts)
+	protected("POST /api/posts", s.createPost)
+	protected("POST /api/posts/{id}/replies", s.createReply)
+	protected("PATCH /api/posts/{id}", s.updatePost)
+	protected("DELETE /api/posts/{id}", s.deletePost)
+	protected("POST /api/tasks", s.createTask)
+	protected("POST /api/tasks/dashboard/users/{userID}/tasks/{id}/complete", s.completeDashboardTask)
+	protected("POST /api/tasks/{id}/complete", s.completeTask)
+	protected("PATCH /api/tasks/{id}", s.updateTask)
+	protected("DELETE /api/tasks/{id}", s.deleteTask)
 
 	return mux
 }

@@ -20,3 +20,11 @@ func frontendAssets() http.Handler {
 func (s *Server) frontend(w http.ResponseWriter, r *http.Request) {
 	http.ServeFileFS(w, r, frontendFiles, "static/index.html")
 }
+
+func (s *Server) tasksFrontend(w http.ResponseWriter, r *http.Request) {
+	http.ServeFileFS(w, r, frontendFiles, "static/tasks.html")
+}
+
+func (s *Server) taskDashboardFrontend(w http.ResponseWriter, r *http.Request) {
+	http.ServeFileFS(w, r, frontendFiles, "static/tasks-dashboard.html")
+}
