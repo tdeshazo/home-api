@@ -845,15 +845,9 @@ textarea:focus {
   color: var(--warn);
 }
 
-.pager {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 18px;
-}
-
-#pageSummary {
+.scroll-status {
+  min-height: 24px;
+  margin-top: 16px;
   color: var(--muted);
   font-size: 14px;
   font-weight: 700;
@@ -876,14 +870,12 @@ textarea:focus {
   }
 
   .panel-head,
-  .timeline-head,
-  .pager {
+  .timeline-head {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .mode-tabs,
-  .pager button {
+  .mode-tabs {
     width: 100%;
   }
 

@@ -3,6 +3,7 @@ const state = {
   offset: 0,
   posts: [],
   hasMore: false,
+  loadingPosts: false,
   replies: {},
   theme: readTheme(),
   session: readSession(),
@@ -21,9 +22,7 @@ const els = {
   authStatus: document.querySelector("#authStatus"),
   timelineMeta: document.querySelector("#timelineMeta"),
   postsList: document.querySelector("#postsList"),
-  pageSummary: document.querySelector("#pageSummary"),
-  prevPage: document.querySelector("#prevPage"),
-  nextPage: document.querySelector("#nextPage"),
+  scrollStatus: document.querySelector("#scrollStatus"),
   refreshPosts: document.querySelector("#refreshPosts"),
   themeToggle: document.querySelector("#themeToggle"),
   themeIcon: document.querySelector("#themeIcon"),
@@ -48,22 +47,14 @@ function init() {
   els.postsList.addEventListener("input", handleTimelineInput);
   els.postsList.addEventListener("submit", handleReplySubmit);
   els.themeToggle.addEventListener("click", toggleTheme);
-  els.refreshPosts.addEventListener("click", () => loadPosts());
-  els.prevPage.addEventListener("click", () => {
-    state.offset = Math.max(0, state.offset - state.limit);
-    loadPosts();
-  });
-  els.nextPage.addEventListener("click", () => {
-    if (!state.hasMore) return;
-    state.offset += state.limit;
-    loadPosts();
-  });
+  els.refreshPosts.addEventListener("click", () => loadPosts({ reset: true }));
+  window.addEventListener("scroll", maybeLoadMorePosts, { passive: true });
   document.addEventListener("click", closeEmojiPopovers);
 
   renderTheme();
   updatePostCounter();
   renderSession();
-  loadPosts();
+  loadPosts({ reset: true });
   hydrateCurrentUser(false);
 }
 
@@ -138,8 +129,7 @@ async function handleCreatePost(event) {
     });
     els.postForm.reset();
     updatePostCounter();
-    state.offset = 0;
-    await loadPosts();
+    await loadPosts({ reset: true });
   } catch (error) {
     setAuthStatus(error.message);
   } finally {
@@ -147,8 +137,20 @@ async function handleCreatePost(event) {
   }
 }
 
-async function loadPosts() {
-  els.postsList.innerHTML = `<div class="empty-state">Loading...</div>`;
+async function loadPosts({ reset = false } = {}) {
+  if (state.loadingPosts) return;
+  if (!reset && !state.hasMore) return;
+
+  if (reset) {
+    state.offset = 0;
+    state.posts = [];
+    state.replies = {};
+    state.hasMore = true;
+    els.postsList.innerHTML = `<div class="empty-state">Loading...</div>`;
+  }
+
+  state.loadingPosts = true;
+  renderScrollStatus();
   try {
     const params = new URLSearchParams({
       limit: String(state.limit + 1),
@@ -157,11 +159,30 @@ async function loadPosts() {
     const response = await apiFetch(`/api/posts?${params.toString()}`);
     const posts = response.posts ?? [];
     state.hasMore = posts.length > state.limit;
-    state.posts = posts.slice(0, state.limit);
-    state.replies = {};
+    const visiblePosts = posts.slice(0, state.limit);
+    state.posts = reset ? visiblePosts : [...state.posts, ...visiblePosts];
+    state.offset += visiblePosts.length;
     renderPosts();
   } catch (error) {
-    els.postsList.innerHTML = `<div class="error-state">${escapeHTML(error.message)}</div>`;
+    state.hasMore = false;
+    if (reset || state.posts.length === 0) {
+      els.postsList.innerHTML = `<div class="error-state">${escapeHTML(error.message)}</div>`;
+    } else {
+      setAuthStatus(error.message);
+    }
+  } finally {
+    state.loadingPosts = false;
+    renderScrollStatus();
+    queueMicrotask(maybeLoadMorePosts);
+  }
+}
+
+function maybeLoadMorePosts() {
+  if (state.loadingPosts || !state.hasMore) return;
+  const scrollPosition = window.scrollY + window.innerHeight;
+  const loadThreshold = document.documentElement.scrollHeight - 360;
+  if (scrollPosition >= loadThreshold) {
+    loadPosts();
   }
 }
 
@@ -182,15 +203,26 @@ function renderSession() {
 }
 
 function renderPosts() {
-  if (state.posts.length === 0) {
+  if (state.loadingPosts && state.posts.length === 0) {
+    els.postsList.innerHTML = `<div class="empty-state">Loading...</div>`;
+  } else if (state.posts.length === 0) {
     els.postsList.innerHTML = `<div class="empty-state">No posts found.</div>`;
   } else {
     els.postsList.innerHTML = state.posts.map((post) => renderPost(post)).join("");
   }
-  els.prevPage.disabled = state.offset === 0;
-  els.nextPage.disabled = !state.hasMore;
-  const page = Math.floor(state.offset / state.limit) + 1;
-  els.pageSummary.textContent = `Page ${page}`;
+  renderScrollStatus();
+}
+
+function renderScrollStatus() {
+  if (state.loadingPosts && state.posts.length > 0) {
+    els.scrollStatus.textContent = "Loading more posts...";
+    return;
+  }
+  if (!state.hasMore && state.posts.length > 0) {
+    els.scrollStatus.textContent = "End of timeline.";
+    return;
+  }
+  els.scrollStatus.textContent = "";
 }
 
 function renderPost(post, depth = 0) {
