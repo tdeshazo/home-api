@@ -1,4 +1,4 @@
-# social-api
+# home-api
 
 A small Go + Postgres API scaffold that assumes `sqlc` owns database code generation.
 
@@ -146,8 +146,8 @@ For JWT mode, set:
 APP_ENV=production
 AUTH_MODE=jwt
 JWT_SECRET=change-me
-JWT_ISSUER=social-api
-JWT_AUDIENCE=social-api-api
+JWT_ISSUER=home-api
+JWT_AUDIENCE=home-api-api
 AUTH_ACCESS_TOKEN_TTL=15m
 AUTH_REFRESH_TOKEN_TTL=720h
 ```
@@ -208,7 +208,7 @@ X-API-Key: <key>
 Generate a local test JWT:
 
 ```bash
-go run ./cmd/token   -user-id 00000000-0000-0000-0000-000000000001   -secret change-me   -issuer social-api   -audience social-api-api
+go run ./cmd/token   -user-id 00000000-0000-0000-0000-000000000001   -secret change-me   -issuer home-api   -audience home-api-api
 ```
 
 Then call the API:

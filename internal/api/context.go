@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"social-api/internal/db"
+	"github.com/tdeshazo/home-api/internal/db"
 )
 
 type contextKey string

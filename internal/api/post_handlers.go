@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"social-api/internal/db"
+	"github.com/tdeshazo/home-api/internal/db"
 )
 
 func (s *Server) createPost(w http.ResponseWriter, r *http.Request) {

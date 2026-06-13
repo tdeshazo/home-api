@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"social-api/internal/db"
+	"github.com/tdeshazo/home-api/internal/db"
 )
 
 type Server struct {

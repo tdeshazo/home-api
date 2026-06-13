@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"social-api/internal/auth"
-	"social-api/internal/db"
+	"github.com/tdeshazo/home-api/internal/auth"
+	"github.com/tdeshazo/home-api/internal/db"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"

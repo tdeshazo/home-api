@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"social-api/internal/api"
-	"social-api/internal/db"
-	"social-api/internal/logging"
+	"github.com/tdeshazo/home-api/internal/api"
+	"github.com/tdeshazo/home-api/internal/db"
+	"github.com/tdeshazo/home-api/internal/logging"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

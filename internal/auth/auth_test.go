@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"social-api/internal/auth"
+	"github.com/tdeshazo/home-api/internal/auth"
 
 	"github.com/google/uuid"
 )
@@ -77,11 +77,11 @@ func TestJWTValidateWithClaims(t *testing.T) {
 		t.Fatal("expected invalid issuer to fail validation")
 	}
 
-	claimedToken, err := auth.MakeJWTWithClaims(userID, "test-secret", time.Minute, "social-api", "social-api-api")
+	claimedToken, err := auth.MakeJWTWithClaims(userID, "test-secret", time.Minute, "github.com/tdeshazo/home-api", "github.com/tdeshazo/home-api-api")
 	if err != nil {
 		t.Fatalf("make jwt with claims: %v", err)
 	}
-	if _, err := auth.ValidateJWTWithClaims(claimedToken, "test-secret", "social-api", "social-api-api"); err != nil {
+	if _, err := auth.ValidateJWTWithClaims(claimedToken, "test-secret", "github.com/tdeshazo/home-api", "github.com/tdeshazo/home-api-api"); err != nil {
 		t.Fatalf("validate jwt with issuer and audience: %v", err)
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"social-api/internal/db"
+	"github.com/tdeshazo/home-api/internal/db"
 
 	"github.com/google/uuid"
 )

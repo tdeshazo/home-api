@@ -1,4 +1,4 @@
-module social-api
+module github.com/tdeshazo/home-api
 
 go 1.25.0
 

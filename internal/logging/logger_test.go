@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"social-api/internal/logging"
+	"github.com/tdeshazo/home-api/internal/logging"
 )
 
 func TestNewLoggerWritesBuildAndErrorAttributes(t *testing.T) {

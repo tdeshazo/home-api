@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"os"
 
-	"social-api/internal/build"
+	"github.com/tdeshazo/home-api/internal/build"
 )
 
 type closeFunc func() error

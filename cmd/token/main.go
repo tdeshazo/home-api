@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"social-api/internal/auth"
+	"github.com/tdeshazo/home-api/internal/auth"
 
 	"github.com/google/uuid"
 )
@@ -14,8 +14,8 @@ import (
 func main() {
 	userID := flag.String("user-id", "", "user UUID to place in the JWT subject")
 	secret := flag.String("secret", "", "HS256 signing secret")
-	issuer := flag.String("issuer", "social-api", "JWT issuer")
-	audience := flag.String("audience", "social-api-api", "JWT audience")
+	issuer := flag.String("issuer", "github.com/tdeshazo/home-api", "JWT issuer")
+	audience := flag.String("audience", "github.com/tdeshazo/home-api-api", "JWT audience")
 	ttl := flag.Duration("ttl", time.Hour, "token lifetime")
 	flag.Parse()
 

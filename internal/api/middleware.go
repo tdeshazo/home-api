@@ -8,9 +8,10 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
-	authpkg "social-api/internal/auth"
-	"social-api/internal/db"
 	"time"
+
+	authpkg "github.com/tdeshazo/home-api/internal/auth"
+	"github.com/tdeshazo/home-api/internal/db"
 )
 
 type Middleware func(http.Handler) http.Handler
