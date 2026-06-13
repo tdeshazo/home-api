@@ -24,44 +24,12 @@
             <span id="themeIcon">◐</span>
           </button>
           <div class="session" id="sessionSummary"></div>
+          <a class="secondary-action compact-action session-action" id="loginLink" href="/login">Login</a>
+          <button class="secondary-action compact-action session-action is-hidden" type="button" id="logoutButton">Logout</button>
         </div>
       </header>
 
       <main class="dashboard-shell">
-        <section class="auth-panel dashboard-auth" aria-labelledby="authTitle">
-          <div class="panel-head">
-            <h1 id="authTitle">Admin</h1>
-            <div class="mode-tabs" role="tablist" aria-label="Authentication mode">
-              <button class="tab is-active" type="button" data-auth-tab="login">Login</button>
-              <button class="tab" type="button" data-auth-tab="dev">Dev</button>
-            </div>
-          </div>
-
-          <form class="auth-form" id="loginForm" data-auth-view="login">
-            <label>
-              Email
-              <input name="email" type="email" autocomplete="email" required />
-            </label>
-            <label>
-              Password
-              <input name="password" type="password" autocomplete="current-password" required />
-            </label>
-            <button class="primary-action" type="submit">Login</button>
-          </form>
-
-          <div class="dev-auth is-hidden" data-auth-view="dev">
-            <button type="button" class="secondary-action" data-dev-user="00000000-0000-0000-0000-000000000001">Alice</button>
-            <label>
-              User UUID
-              <input id="devUserID" type="text" value="00000000-0000-0000-0000-000000000001" />
-            </label>
-            <button class="primary-action" type="button" id="devLogin">Use dev token</button>
-          </div>
-
-          <button class="ghost-action" type="button" id="logoutButton">Logout</button>
-          <p class="status-line" id="authStatus" role="status"></p>
-        </section>
-
         <section class="dashboard-panel" aria-labelledby="dashboardTitle">
           <div class="panel-head dashboard-head">
             <div>
@@ -70,6 +38,7 @@
             </div>
             <button class="secondary-action" type="button" id="refreshDashboard">Refresh</button>
           </div>
+          <p class="status-line" id="authStatus" role="status"></p>
 
           <div class="assignee-tabs" id="assigneeTabs" role="tablist" aria-label="Assignees"></div>
           <div class="dashboard-task-list" id="dashboardTasks" aria-live="polite"></div>

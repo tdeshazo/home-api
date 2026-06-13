@@ -6,9 +6,17 @@ import (
 	"net/mail"
 	"regexp"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 var handlePattern = regexp.MustCompile(`^[a-z0-9_-]{3,32}$`)
+
+const (
+	accessCookieName  = "home_api_access"
+	refreshCookieName = "home_api_refresh"
+)
 
 type registerRequest struct {
 	Email       string `json:"email"`
@@ -28,6 +36,17 @@ type refreshRequest struct {
 
 type logoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
+}
+
+type devLoginRequest struct {
+	UserID string `json:"user_id"`
+}
+
+type authSessionResponse struct {
+	User             userResponse `json:"user"`
+	AccessExpiresAt  time.Time    `json:"access_expires_at"`
+	RefreshExpiresAt *time.Time   `json:"refresh_expires_at,omitempty"`
+	TokenType        string       `json:"token_type"`
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +69,8 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, response)
+	s.setAuthCookies(w, response)
+	writeJSON(w, http.StatusCreated, newAuthSessionResponse(response))
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
@@ -73,15 +93,53 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, response)
+	s.setAuthCookies(w, response)
+	writeJSON(w, http.StatusOK, newAuthSessionResponse(response))
 }
 
-func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
-	var input refreshRequest
+func (s *Server) devLogin(w http.ResponseWriter, r *http.Request) {
+	var input devLoginRequest
 	if err := decodeJSON(r, &input); err != nil {
 		SetLogError(r.Context(), err)
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
+	}
+
+	userID, err := uuid.Parse(strings.TrimSpace(input.UserID))
+	if err != nil {
+		SetLogError(r.Context(), err)
+		writeError(w, http.StatusBadRequest, "user_id must be a valid UUID")
+		return
+	}
+
+	user, err := s.auth.Authenticate(r.Context(), "dev:"+userID.String())
+	if err != nil {
+		SetLogError(r.Context(), err)
+		writeError(w, http.StatusUnauthorized, "invalid dev user")
+		return
+	}
+
+	expiresAt := time.Now().UTC().Add(24 * time.Hour)
+	http.SetCookie(w, s.authCookie(accessCookieName, "dev:"+userID.String(), expiresAt))
+	clearCookie(w, s.authCookie(refreshCookieName, "", time.Time{}))
+	writeJSON(w, http.StatusOK, authSessionResponse{
+		User:            publicUser(user),
+		AccessExpiresAt: expiresAt,
+		TokenType:       "Bearer",
+	})
+}
+
+func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
+	var input refreshRequest
+	if err := decodeOptionalJSON(r, &input); err != nil {
+		SetLogError(r.Context(), err)
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if strings.TrimSpace(input.RefreshToken) == "" {
+		if cookie, err := r.Cookie(refreshCookieName); err == nil {
+			input.RefreshToken = cookie.Value
+		}
 	}
 
 	response, err := s.authEndpoints.Refresh(r.Context(), input)
@@ -90,23 +148,76 @@ func (s *Server) refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, response)
+	s.setAuthCookies(w, response)
+	writeJSON(w, http.StatusOK, newAuthSessionResponse(response))
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	var input logoutRequest
-	if err := decodeJSON(r, &input); err != nil {
+	if err := decodeOptionalJSON(r, &input); err != nil {
 		SetLogError(r.Context(), err)
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-
-	if err := s.authEndpoints.Logout(r.Context(), input); err != nil {
-		handleAuthEndpointError(w, r, err)
-		return
+	if strings.TrimSpace(input.RefreshToken) == "" {
+		if cookie, err := r.Cookie(refreshCookieName); err == nil {
+			input.RefreshToken = cookie.Value
+		}
 	}
 
+	if strings.TrimSpace(input.RefreshToken) != "" {
+		if err := s.authEndpoints.Logout(r.Context(), input); err != nil {
+			handleAuthEndpointError(w, r, err)
+			return
+		}
+	}
+
+	s.clearAuthCookies(w)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func newAuthSessionResponse(response authTokenResponse) authSessionResponse {
+	refreshExpiresAt := response.RefreshExpiresAt
+	return authSessionResponse{
+		User:             response.User,
+		AccessExpiresAt:  response.AccessExpiresAt,
+		RefreshExpiresAt: &refreshExpiresAt,
+		TokenType:        response.TokenType,
+	}
+}
+
+func (s *Server) setAuthCookies(w http.ResponseWriter, response authTokenResponse) {
+	http.SetCookie(w, s.authCookie(accessCookieName, response.AccessToken, response.AccessExpiresAt))
+	http.SetCookie(w, s.authCookie(refreshCookieName, response.RefreshToken, response.RefreshExpiresAt))
+}
+
+func (s *Server) clearAuthCookies(w http.ResponseWriter) {
+	clearCookie(w, s.authCookie(accessCookieName, "", time.Time{}))
+	clearCookie(w, s.authCookie(refreshCookieName, "", time.Time{}))
+}
+
+func (s *Server) authCookie(name, value string, expires time.Time) *http.Cookie {
+	maxAge := 0
+	if !expires.IsZero() {
+		maxAge = max(0, int(time.Until(expires).Seconds()))
+	}
+	return &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		Expires:  expires,
+		MaxAge:   maxAge,
+		HttpOnly: true,
+		Secure:   strings.EqualFold(s.authConfig.Environment, "production"),
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
+func clearCookie(w http.ResponseWriter, cookie *http.Cookie) {
+	cookie.Value = ""
+	cookie.Expires = time.Unix(0, 0).UTC()
+	cookie.MaxAge = -1
+	http.SetCookie(w, cookie)
 }
 
 func normalizeRegisterRequest(input registerRequest) registerRequest {

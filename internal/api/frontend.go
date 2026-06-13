@@ -28,3 +28,7 @@ func (s *Server) tasksFrontend(w http.ResponseWriter, r *http.Request) {
 func (s *Server) taskDashboardFrontend(w http.ResponseWriter, r *http.Request) {
 	http.ServeFileFS(w, r, frontendFiles, "static/tasks-dashboard.html")
 }
+
+func (s *Server) loginFrontend(w http.ResponseWriter, r *http.Request) {
+	http.ServeFileFS(w, r, frontendFiles, "static/login.html")
+}

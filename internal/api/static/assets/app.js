@@ -30,14 +30,8 @@ const els = {
   postForm: document.querySelector("#postForm"),
   postBody: document.querySelector("#postForm textarea"),
   postCounter: document.querySelector("#postCounter"),
-  loginForm: document.querySelector("#loginForm"),
-  registerForm: document.querySelector("#registerForm"),
+  loginLink: document.querySelector("#loginLink"),
   logoutButton: document.querySelector("#logoutButton"),
-  devLogin: document.querySelector("#devLogin"),
-  devUserID: document.querySelector("#devUserID"),
-  authTabs: Array.from(document.querySelectorAll("[data-auth-tab]")),
-  authViews: Array.from(document.querySelectorAll("[data-auth-view]")),
-  devUserButtons: Array.from(document.querySelectorAll("[data-dev-user]")),
 };
 
 init();
@@ -46,19 +40,7 @@ function init() {
   document.querySelectorAll("[data-emoji-popover]").forEach((popover) => {
     popover.innerHTML = renderEmojiPalette();
   });
-  els.authTabs.forEach((button) => {
-    button.addEventListener("click", () => selectAuthTab(button.dataset.authTab));
-  });
-  els.loginForm.addEventListener("submit", handleLogin);
-  els.registerForm.addEventListener("submit", handleRegister);
   els.logoutButton.addEventListener("click", handleLogout);
-  els.devLogin.addEventListener("click", handleDevLogin);
-  els.devUserButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      els.devUserID.value = button.dataset.devUser;
-      handleDevLogin();
-    });
-  });
   els.postForm.addEventListener("submit", handleCreatePost);
   els.postBody.addEventListener("input", updatePostCounter);
   els.postForm.addEventListener("click", handleComposerClick);
@@ -82,19 +64,7 @@ function init() {
   updatePostCounter();
   renderSession();
   loadPosts();
-  if (state.session?.accessToken) {
-    hydrateCurrentUser();
-  }
-}
-
-function selectAuthTab(tab) {
-  els.authTabs.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.authTab === tab);
-  });
-  els.authViews.forEach((view) => {
-    view.classList.toggle("is-hidden", view.dataset.authView !== tab);
-  });
-  setAuthStatus("");
+  hydrateCurrentUser(false);
 }
 
 function toggleTheme() {
@@ -108,81 +78,11 @@ function renderTheme() {
   els.themeIcon.textContent = state.theme === "dark" ? "☀" : "◐";
 }
 
-async function handleLogin(event) {
-  event.preventDefault();
-  const form = new FormData(els.loginForm);
-  setAuthStatus("Logging in...");
-  try {
-    const response = await apiFetch("/api/auth/login", {
-      method: "POST",
-      body: {
-        email: form.get("email"),
-        password: form.get("password"),
-      },
-    });
-    saveTokenSession(response);
-    els.loginForm.reset();
-    setAuthStatus("Logged in.");
-    renderSession();
-  } catch (error) {
-    setAuthStatus(error.message);
-  }
-}
-
-async function handleRegister(event) {
-  event.preventDefault();
-  const form = new FormData(els.registerForm);
-  setAuthStatus("Creating account...");
-  try {
-    const response = await apiFetch("/api/auth/register", {
-      method: "POST",
-      body: {
-        email: form.get("email"),
-        handle: form.get("handle"),
-        display_name: form.get("display_name"),
-        password: form.get("password"),
-      },
-    });
-    saveTokenSession(response);
-    els.registerForm.reset();
-    selectAuthTab("login");
-    setAuthStatus("Account ready.");
-    renderSession();
-  } catch (error) {
-    setAuthStatus(error.message);
-  }
-}
-
-async function handleDevLogin() {
-  const userID = els.devUserID.value.trim();
-  if (!userID) {
-    setAuthStatus("User UUID is required.");
-    return;
-  }
-
-  state.session = {
-    accessToken: `dev:${userID}`,
-    refreshToken: "",
-    tokenType: "Bearer",
-    user: null,
-  };
-  writeSession(state.session);
-  setAuthStatus("Dev token selected.");
-  renderSession();
-  await hydrateCurrentUser();
-}
-
 async function handleLogout() {
-  const refreshToken = state.session?.refreshToken;
-  if (refreshToken) {
-    try {
-      await apiFetch("/api/auth/logout", {
-        method: "POST",
-        body: { refresh_token: refreshToken },
-      });
-    } catch {
-      // Local logout should still clear stale browser credentials.
-    }
+  try {
+    await apiFetch("/api/auth/logout", { method: "POST" });
+  } catch {
+    // Local logout should still clear stale browser credentials.
   }
   state.session = null;
   writeSession(null);
@@ -190,14 +90,17 @@ async function handleLogout() {
   renderSession();
 }
 
-async function hydrateCurrentUser() {
+async function hydrateCurrentUser(showError = true) {
   try {
     const user = await apiFetch("/api/me", { auth: true });
-    state.session = { ...state.session, user };
+    state.session = { user };
     writeSession(state.session);
     renderSession();
   } catch (error) {
-    setAuthStatus(error.message);
+    state.session = null;
+    writeSession(null);
+    renderSession();
+    if (showError) setAuthStatus(error.message);
   }
 }
 
@@ -221,7 +124,7 @@ async function handleCreatePost(event) {
   event.preventDefault();
   const body = els.postBody.value.trim();
   if (!body) return;
-  if (!state.session?.accessToken) {
+  if (!state.session?.user) {
     setAuthStatus("Login required.");
     return;
   }
@@ -264,11 +167,13 @@ async function loadPosts() {
 
 function renderSession() {
   const user = state.session?.user;
-  const loggedIn = Boolean(state.session?.accessToken);
-  els.logoutButton.disabled = !loggedIn;
+  const loggedIn = Boolean(user);
+  els.loginLink.href = `/login?return_to=${encodeURIComponent(window.location.pathname)}`;
+  els.loginLink.classList.toggle("is-hidden", loggedIn);
+  els.logoutButton.classList.toggle("is-hidden", !loggedIn);
   els.postForm.classList.toggle("is-hidden", !loggedIn);
   els.sessionSummary.textContent = loggedIn
-    ? user ? `@${user.handle}` : "Authenticated"
+    ? `@${user.handle}`
     : "Signed out";
   els.timelineMeta.textContent = loggedIn
     ? "Top-level posts"
@@ -294,7 +199,7 @@ function renderPost(post, depth = 0) {
   const timestamp = formatDate(post.created_at);
   const replies = replyState(post.id);
   const expanded = replies.expanded;
-  const canReply = Boolean(state.session?.accessToken);
+  const canReply = Boolean(state.session?.user);
   const className = depth === 0 ? "post" : "reply";
   const repliesHTML = expanded ? renderReplies(post.id, depth + 1) : "";
   const replyFormHTML = canReply ? renderReplyForm(post.id) : "";
@@ -547,14 +452,11 @@ async function apiFetch(path, options = {}) {
   const headers = new Headers(options.headers ?? {});
   headers.set("Accept", "application/json");
   if (options.body) headers.set("Content-Type", "application/json");
-  if (options.auth) {
-    if (!state.session?.accessToken) throw new Error("Login required.");
-    headers.set("Authorization", `${state.session.tokenType || "Bearer"} ${state.session.accessToken}`);
-  }
 
   const response = await fetch(apiPath(path), {
     method: options.method ?? "GET",
     headers,
+    credentials: "same-origin",
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
@@ -574,18 +476,17 @@ function apiPath(path) {
 }
 
 function saveTokenSession(response) {
-  state.session = {
-    accessToken: response.access_token,
-    refreshToken: response.refresh_token,
-    tokenType: response.token_type || "Bearer",
-    user: response.user,
-  };
+  state.session = { user: response.user };
   writeSession(state.session);
 }
 
 function readSession() {
   try {
-    return JSON.parse(localStorage.getItem("home-api-session"));
+    const session = JSON.parse(localStorage.getItem("home-api-session"));
+    if (!session?.user) return null;
+    const sanitized = { user: session.user };
+    localStorage.setItem("home-api-session", JSON.stringify(sanitized));
+    return sanitized;
   } catch {
     return null;
   }

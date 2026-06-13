@@ -24,68 +24,12 @@
             <span id="themeIcon">◐</span>
           </button>
           <div class="session" id="sessionSummary"></div>
+          <a class="secondary-action compact-action session-action" id="loginLink" href="/login">Login</a>
+          <button class="secondary-action compact-action session-action is-hidden" type="button" id="logoutButton">Logout</button>
         </div>
       </header>
 
       <main class="workspace">
-        <section class="auth-panel" aria-labelledby="authTitle">
-          <div class="panel-head">
-            <h1 id="authTitle">Account</h1>
-            <div class="mode-tabs" role="tablist" aria-label="Authentication mode">
-              <button class="tab is-active" type="button" data-auth-tab="login">Login</button>
-              <button class="tab" type="button" data-auth-tab="register">Register</button>
-              <button class="tab" type="button" data-auth-tab="dev">Dev</button>
-            </div>
-          </div>
-
-          <form class="auth-form" id="loginForm" data-auth-view="login">
-            <label>
-              Email
-              <input name="email" type="email" autocomplete="email" required />
-            </label>
-            <label>
-              Password
-              <input name="password" type="password" autocomplete="current-password" required />
-            </label>
-            <button class="primary-action" type="submit">Login</button>
-          </form>
-
-          <form class="auth-form is-hidden" id="registerForm" data-auth-view="register">
-            <label>
-              Email
-              <input name="email" type="email" autocomplete="email" required />
-            </label>
-            <label>
-              Handle
-              <input name="handle" type="text" autocomplete="username" minlength="3" maxlength="32" required />
-            </label>
-            <label>
-              Display name
-              <input name="display_name" type="text" autocomplete="name" required />
-            </label>
-            <label>
-              Password
-              <input name="password" type="password" autocomplete="new-password" minlength="8" required />
-            </label>
-            <button class="primary-action" type="submit">Register</button>
-          </form>
-
-          <div class="dev-auth is-hidden" data-auth-view="dev">
-            <div class="dev-grid">
-              <button type="button" class="secondary-action" data-dev-user="00000000-0000-0000-0000-000000000001">Alice</button>
-              <button type="button" class="secondary-action" data-dev-user="00000000-0000-0000-0000-000000000002">Bob</button>
-            </div>
-            <label>
-              User UUID
-              <input id="devUserID" type="text" value="00000000-0000-0000-0000-000000000001" />
-            </label>
-            <button class="primary-action" type="button" id="devLogin">Use dev token</button>
-          </div>
-
-          <button class="ghost-action" type="button" id="logoutButton">Logout</button>
-          <p class="status-line" id="authStatus" role="status"></p>
-        </section>
-
         <section class="timeline-panel" aria-labelledby="timelineTitle">
           <div class="panel-head timeline-head">
             <div>
@@ -94,6 +38,7 @@
             </div>
             <button class="secondary-action" type="button" id="refreshPosts">Refresh</button>
           </div>
+          <p class="status-line" id="authStatus" role="status"></p>
 
           <form class="composer" id="postForm">
             <label>

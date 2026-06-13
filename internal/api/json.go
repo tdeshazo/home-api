@@ -32,3 +32,10 @@ func decodeJSON(r *http.Request, dst any) error {
 
 	return nil
 }
+
+func decodeOptionalJSON(r *http.Request, dst any) error {
+	if r.Body == nil || r.ContentLength == 0 {
+		return nil
+	}
+	return decodeJSON(r, dst)
+}

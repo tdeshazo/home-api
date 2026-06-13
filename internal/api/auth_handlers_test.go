@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"net/http"
@@ -206,7 +205,7 @@ func TestAuthHandlersSuccess(t *testing.T) {
 		TokenType:        "Bearer",
 	}
 
-	t.Run("register normalizes input and returns tokens", func(t *testing.T) {
+	t.Run("register normalizes input and sets cookies", func(t *testing.T) {
 		server := &Server{authEndpoints: fakeAuthEndpointService{
 			register: func(_ context.Context, input registerRequest) (authTokenResponse, error) {
 				if input.Email != "user@example.com" || input.DisplayName != "User One" {
@@ -223,15 +222,17 @@ func TestAuthHandlersSuccess(t *testing.T) {
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusCreated, rec.Body.String())
 		}
-		if !strings.Contains(rec.Body.String(), `"refresh_token":"refresh-2"`) {
-			t.Fatalf("expected refresh token in body, got %s", rec.Body.String())
+		assertAuthCookie(t, rec, accessCookieName, "access")
+		assertAuthCookie(t, rec, refreshCookieName, "refresh-2")
+		if strings.Contains(rec.Body.String(), "access_token") || strings.Contains(rec.Body.String(), "refresh_token") {
+			t.Fatalf("response exposed session tokens: %s", rec.Body.String())
 		}
 		if strings.Contains(rec.Body.String(), "password_hash") {
 			t.Fatalf("response leaked password hash: %s", rec.Body.String())
 		}
 	})
 
-	t.Run("refresh returns rotated token", func(t *testing.T) {
+	t.Run("refresh rotates token from cookie", func(t *testing.T) {
 		server := &Server{authEndpoints: fakeAuthEndpointService{
 			refresh: func(_ context.Context, input refreshRequest) (authTokenResponse, error) {
 				if input.RefreshToken != "refresh-1" {
@@ -240,7 +241,8 @@ func TestAuthHandlersSuccess(t *testing.T) {
 				return response, nil
 			},
 		}}
-		req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", strings.NewReader(`{"refresh_token":"refresh-1"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil)
+		req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "refresh-1"})
 		rec := httptest.NewRecorder()
 
 		server.refresh(rec, req)
@@ -248,21 +250,24 @@ func TestAuthHandlersSuccess(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusOK, rec.Body.String())
 		}
-		if !strings.Contains(rec.Body.String(), `"refresh_token":"refresh-2"`) {
-			t.Fatalf("expected rotated token in body, got %s", rec.Body.String())
+		assertAuthCookie(t, rec, accessCookieName, "access")
+		assertAuthCookie(t, rec, refreshCookieName, "refresh-2")
+		if strings.Contains(rec.Body.String(), "access_token") || strings.Contains(rec.Body.String(), "refresh_token") {
+			t.Fatalf("response exposed session tokens: %s", rec.Body.String())
 		}
 	})
 
-	t.Run("logout is idempotent", func(t *testing.T) {
+	t.Run("logout uses cookie and clears cookies", func(t *testing.T) {
 		server := &Server{authEndpoints: fakeAuthEndpointService{
 			logout: func(_ context.Context, input logoutRequest) error {
-				if input.RefreshToken != "" {
-					t.Fatalf("refresh token = %q, want empty", input.RefreshToken)
+				if input.RefreshToken != "refresh-1" {
+					t.Fatalf("refresh token = %q, want refresh-1", input.RefreshToken)
 				}
 				return nil
 			},
 		}}
-		req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", bytes.NewBufferString(`{"refresh_token":""}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/auth/logout", nil)
+		req.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "refresh-1"})
 		rec := httptest.NewRecorder()
 
 		server.logout(rec, req)
@@ -270,6 +275,8 @@ func TestAuthHandlersSuccess(t *testing.T) {
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("status = %d, want %d; body %s", rec.Code, http.StatusNoContent, rec.Body.String())
 		}
+		assertClearedCookie(t, rec, accessCookieName)
+		assertClearedCookie(t, rec, refreshCookieName)
 	})
 }
 
@@ -291,4 +298,47 @@ func withRegisterDisplayName(input registerRequest, displayName string) register
 func withRegisterPassword(input registerRequest, password string) registerRequest {
 	input.Password = password
 	return input
+}
+
+func assertAuthCookie(t *testing.T, rec *httptest.ResponseRecorder, name, value string) {
+	t.Helper()
+	cookie := findCookie(rec.Result().Cookies(), name)
+	if cookie == nil {
+		t.Fatalf("missing cookie %s; cookies %#v", name, rec.Result().Cookies())
+	}
+	if cookie.Value != value {
+		t.Fatalf("%s cookie value = %q, want %q", name, cookie.Value, value)
+	}
+	if !cookie.HttpOnly {
+		t.Fatalf("%s cookie must be HttpOnly", name)
+	}
+	if cookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("%s SameSite = %v, want Lax", name, cookie.SameSite)
+	}
+	if cookie.Path != "/" {
+		t.Fatalf("%s Path = %q, want /", name, cookie.Path)
+	}
+}
+
+func assertClearedCookie(t *testing.T, rec *httptest.ResponseRecorder, name string) {
+	t.Helper()
+	cookie := findCookie(rec.Result().Cookies(), name)
+	if cookie == nil {
+		t.Fatalf("missing cleared cookie %s; cookies %#v", name, rec.Result().Cookies())
+	}
+	if cookie.MaxAge != -1 {
+		t.Fatalf("%s MaxAge = %d, want -1", name, cookie.MaxAge)
+	}
+	if !cookie.HttpOnly {
+		t.Fatalf("%s cleared cookie must be HttpOnly", name)
+	}
+}
+
+func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
+	for _, cookie := range cookies {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	return nil
 }

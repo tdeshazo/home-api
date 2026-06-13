@@ -154,7 +154,7 @@ AUTH_REFRESH_TOKEN_TTL=720h
 
 This scaffold validates HS256 JWTs where the `sub` claim is the user UUID. For a production identity provider, prefer asymmetric signing such as RS256/ES256 and validate keys through JWKS.
 
-Auth endpoints are available only when `AUTH_MODE=jwt` and JWT config is set. They return JSON access and refresh tokens:
+Auth endpoints are available only when `AUTH_MODE=jwt` and JWT config is set. Browser sessions are stored in `HttpOnly` cookies with `SameSite=Lax`; the JSON response includes public user/session metadata, not raw access or refresh tokens:
 
 ```text
 POST /api/auth/register
@@ -179,7 +179,7 @@ curl -X POST http://localhost:8080/api/auth/login \
   -d '{"email":"new@example.com","password":"password123"}'
 ```
 
-Refresh and logout both accept:
+Refresh and logout use the refresh cookie by default. They also accept this body for non-browser clients that manage their own refresh token:
 
 ```json
 {"refresh_token":"paste-refresh-token-here"}

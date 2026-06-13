@@ -17,32 +17,14 @@ const els = {
   taskForm: document.querySelector("#taskForm"),
   taskTitle: document.querySelector("#taskForm input[name='title']"),
   taskCounter: document.querySelector("#taskCounter"),
-  loginForm: document.querySelector("#loginForm"),
-  registerForm: document.querySelector("#registerForm"),
+  loginLink: document.querySelector("#loginLink"),
   logoutButton: document.querySelector("#logoutButton"),
-  devLogin: document.querySelector("#devLogin"),
-  devUserID: document.querySelector("#devUserID"),
-  authTabs: Array.from(document.querySelectorAll("[data-auth-tab]")),
-  authViews: Array.from(document.querySelectorAll("[data-auth-view]")),
-  devUserButtons: Array.from(document.querySelectorAll("[data-dev-user]")),
 };
 
 init();
 
 function init() {
-  els.authTabs.forEach((button) => {
-    button.addEventListener("click", () => selectAuthTab(button.dataset.authTab));
-  });
-  els.loginForm.addEventListener("submit", handleLogin);
-  els.registerForm.addEventListener("submit", handleRegister);
   els.logoutButton.addEventListener("click", handleLogout);
-  els.devLogin.addEventListener("click", handleDevLogin);
-  els.devUserButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      els.devUserID.value = button.dataset.devUser;
-      handleDevLogin();
-    });
-  });
   els.themeToggle.addEventListener("click", toggleTheme);
   els.refreshTasks.addEventListener("click", () => loadTaskView());
   els.taskForm.addEventListener("submit", handleCreateTask);
@@ -57,20 +39,8 @@ function init() {
 }
 
 async function hydrateInitialView() {
-  if (state.session?.accessToken) {
-    await hydrateCurrentUser();
-  }
+  await hydrateCurrentUser(false);
   await loadTaskView();
-}
-
-function selectAuthTab(tab) {
-  els.authTabs.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.authTab === tab);
-  });
-  els.authViews.forEach((view) => {
-    view.classList.toggle("is-hidden", view.dataset.authView !== tab);
-  });
-  setAuthStatus("");
 }
 
 function toggleTheme() {
@@ -84,84 +54,11 @@ function renderTheme() {
   els.themeIcon.textContent = state.theme === "dark" ? "☀" : "◐";
 }
 
-async function handleLogin(event) {
-  event.preventDefault();
-  const form = new FormData(els.loginForm);
-  setAuthStatus("Logging in...");
-  try {
-    const response = await apiFetch("/api/auth/login", {
-      method: "POST",
-      body: {
-        email: form.get("email"),
-        password: form.get("password"),
-      },
-    });
-    saveTokenSession(response);
-    els.loginForm.reset();
-    setAuthStatus("Logged in.");
-    renderSession();
-    await loadTaskView();
-  } catch (error) {
-    setAuthStatus(error.message);
-  }
-}
-
-async function handleRegister(event) {
-  event.preventDefault();
-  const form = new FormData(els.registerForm);
-  setAuthStatus("Creating account...");
-  try {
-    const response = await apiFetch("/api/auth/register", {
-      method: "POST",
-      body: {
-        email: form.get("email"),
-        handle: form.get("handle"),
-        display_name: form.get("display_name"),
-        password: form.get("password"),
-      },
-    });
-    saveTokenSession(response);
-    els.registerForm.reset();
-    selectAuthTab("login");
-    setAuthStatus("Account ready.");
-    renderSession();
-    await loadTaskView();
-  } catch (error) {
-    setAuthStatus(error.message);
-  }
-}
-
-async function handleDevLogin() {
-  const userID = els.devUserID.value.trim();
-  if (!userID) {
-    setAuthStatus("User UUID is required.");
-    return;
-  }
-
-  state.session = {
-    accessToken: `dev:${userID}`,
-    refreshToken: "",
-    tokenType: "Bearer",
-    user: null,
-  };
-  writeSession(state.session);
-  setAuthStatus("Dev token selected.");
-  renderSession();
-  await hydrateCurrentUser();
-  await loadTaskView();
-}
-
 async function handleLogout() {
-  const refreshToken = state.session?.refreshToken;
-  if (refreshToken) {
-    try {
-      await apiFetch("/api/auth/logout", {
-        method: "POST",
-        body: { refresh_token: refreshToken },
-      });
-    } catch {
-      // Local logout should still clear stale browser credentials.
-    }
+  try {
+    await apiFetch("/api/auth/logout", { method: "POST" });
+  } catch {
+    // Local logout should still clear stale browser credentials.
   }
   state.session = null;
   state.users = [];
@@ -172,25 +69,30 @@ async function handleLogout() {
   await loadTaskView();
 }
 
-async function hydrateCurrentUser() {
+async function hydrateCurrentUser(showError = true) {
   try {
     const user = await apiFetch("/api/me", { auth: true });
-    state.session = { ...state.session, user };
+    state.session = { user };
     writeSession(state.session);
     renderSession();
   } catch (error) {
-    setAuthStatus(error.message);
+    state.session = null;
+    writeSession(null);
+    renderSession();
+    if (showError) setAuthStatus(error.message);
   }
 }
 
 function renderSession() {
   const user = state.session?.user;
-  const loggedIn = Boolean(state.session?.accessToken);
+  const loggedIn = Boolean(user);
   const isAdmin = Boolean(user?.is_admin);
-  els.logoutButton.disabled = !loggedIn;
+  els.loginLink.href = `/login?return_to=${encodeURIComponent(window.location.pathname)}`;
+  els.loginLink.classList.toggle("is-hidden", loggedIn);
+  els.logoutButton.classList.toggle("is-hidden", !loggedIn);
   els.taskForm.classList.toggle("is-hidden", !isAdmin);
   els.sessionSummary.textContent = loggedIn
-    ? user ? `@${user.handle} · ${user.points ?? 0} pts` : "Authenticated"
+    ? `@${user.handle} · ${user.points ?? 0} pts`
     : "Signed out";
   els.tasksMeta.textContent = isAdmin
     ? "Create assigned recurring tasks"
@@ -204,7 +106,7 @@ async function loadTaskView() {
     await Promise.all([loadAllTasks(), loadUsers()]);
     return;
   }
-  if (state.session?.accessToken) {
+  if (state.session?.user) {
     await loadDailyTasks();
     return;
   }
@@ -325,7 +227,7 @@ function renderAssignees() {
 function renderTasks() {
   const isAdmin = Boolean(state.session?.user?.is_admin);
   const tasks = isAdmin ? state.tasks : state.dailyTasks;
-  if (!state.session?.accessToken && !isAdmin) {
+  if (!state.session?.user && !isAdmin) {
     els.tasksList.innerHTML = `<div class="empty-state">Login to view assigned daily tasks.</div>`;
     return;
   }
@@ -414,14 +316,11 @@ async function apiFetch(path, options = {}) {
   const headers = new Headers(options.headers ?? {});
   headers.set("Accept", "application/json");
   if (options.body) headers.set("Content-Type", "application/json");
-  if (options.auth) {
-    if (!state.session?.accessToken) throw new Error("Login required.");
-    headers.set("Authorization", `${state.session.tokenType || "Bearer"} ${state.session.accessToken}`);
-  }
 
   const response = await fetch(apiPath(path), {
     method: options.method ?? "GET",
     headers,
+    credentials: "same-origin",
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
@@ -441,18 +340,17 @@ function apiPath(path) {
 }
 
 function saveTokenSession(response) {
-  state.session = {
-    accessToken: response.access_token,
-    refreshToken: response.refresh_token,
-    tokenType: response.token_type || "Bearer",
-    user: response.user,
-  };
+  state.session = { user: response.user };
   writeSession(state.session);
 }
 
 function readSession() {
   try {
-    return JSON.parse(localStorage.getItem("home-api-session"));
+    const session = JSON.parse(localStorage.getItem("home-api-session"));
+    if (!session?.user) return null;
+    const sanitized = { user: session.user };
+    localStorage.setItem("home-api-session", JSON.stringify(sanitized));
+    return sanitized;
   } catch {
     return null;
   }

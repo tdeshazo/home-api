@@ -12,6 +12,7 @@ type Server struct {
 	txBeginner    txBeginner
 	logger        *slog.Logger
 	auth          Authenticator
+	authConfig    AuthConfig
 	authEndpoints authEndpointService
 }
 
@@ -21,6 +22,7 @@ func NewServer(queries *db.Queries, txBeginner txBeginner, logger *slog.Logger, 
 		txBeginner:    txBeginner,
 		logger:        logger,
 		auth:          auth,
+		authConfig:    authConfig,
 		authEndpoints: newLocalAuthService(queries, txBeginner, authConfig),
 	}
 }
@@ -45,6 +47,7 @@ func (s *Server) Routes() http.Handler {
 
 	public("GET /{$}", s.frontend)
 	public("GET /posts", s.frontend)
+	public("GET /login", s.loginFrontend)
 	public("GET /tasks/dashboard", s.taskDashboardFrontend)
 	public("GET /tasks", s.tasksFrontend)
 	publicHandler("GET /assets/", http.StripPrefix("/assets/", frontendAssets()))
@@ -52,6 +55,7 @@ func (s *Server) Routes() http.Handler {
 	public("GET /api/healthz", s.healthz)
 	public("POST /api/auth/register", s.register)
 	public("POST /api/auth/login", s.login)
+	public("POST /api/auth/dev-login", s.devLogin)
 	public("POST /api/auth/refresh", s.refresh)
 	public("POST /api/auth/logout", s.logout)
 	public("GET /api/posts", s.listPosts)

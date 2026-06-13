@@ -43,6 +43,7 @@ func TestAuthenticateRequestAcceptsBearerAndAPIKey(t *testing.T) {
 		name      string
 		header    string
 		xAPIKey   string
+		cookie    string
 		wantError bool
 	}{
 		{name: "bearer", header: "Bearer access-token"},
@@ -50,17 +51,24 @@ func TestAuthenticateRequestAcceptsBearerAndAPIKey(t *testing.T) {
 		{name: "api key hyphen scheme", header: "Api-Key api-key"},
 		{name: "api key bearer fallback", header: "Bearer api-key"},
 		{name: "api key header", xAPIKey: "api-key"},
+		{name: "access cookie", cookie: "access-token"},
 		{name: "invalid", header: "Basic something", wantError: true},
 		{name: "wrong api key", header: "ApiKey wrong", wantError: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			headers := http.Header{}
-			headers.Set("Authorization", tt.header)
-			headers.Set("X-API-Key", tt.xAPIKey)
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api/me", nil)
+			if err != nil {
+				t.Fatalf("new request: %v", err)
+			}
+			req.Header.Set("Authorization", tt.header)
+			req.Header.Set("X-API-Key", tt.xAPIKey)
+			if tt.cookie != "" {
+				req.AddCookie(&http.Cookie{Name: accessCookieName, Value: tt.cookie})
+			}
 
-			gotUser, err := authenticateRequest(context.Background(), authenticator, headers)
+			gotUser, err := authenticateRequest(context.Background(), authenticator, req)
 			if tt.wantError {
 				if err == nil {
 					t.Fatal("expected error")

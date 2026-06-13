@@ -183,7 +183,7 @@ func recoverMiddleware(logger *slog.Logger) Middleware {
 func authMiddleware(auth Authenticator) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			user, err := authenticateRequest(r.Context(), auth, r.Header)
+			user, err := authenticateRequest(r.Context(), auth, r)
 			if err != nil {
 				SetLogError(r.Context(), err)
 				writeError(w, http.StatusUnauthorized, "invalid or expired credentials")
@@ -197,9 +197,9 @@ func authMiddleware(auth Authenticator) Middleware {
 	}
 }
 
-func authenticateRequest(ctx context.Context, authenticator Authenticator, headers http.Header) (db.User, error) {
+func authenticateRequest(ctx context.Context, authenticator Authenticator, r *http.Request) (db.User, error) {
 	var bearerAuthErr error
-	bearerToken, bearerErr := authpkg.GetBearerToken(headers)
+	bearerToken, bearerErr := authpkg.GetBearerToken(r.Header)
 	if bearerErr == nil {
 		if bearerToken == "" {
 			return db.User{}, fmt.Errorf("empty bearer token")
@@ -211,7 +211,7 @@ func authenticateRequest(ctx context.Context, authenticator Authenticator, heade
 		bearerAuthErr = err
 	}
 
-	apiKey, apiKeyErr := authpkg.GetAPIKey(headers)
+	apiKey, apiKeyErr := authpkg.GetAPIKey(r.Header)
 	if apiKeyErr == nil {
 		return authenticateAPIKeyRequest(ctx, authenticator, apiKey)
 	}
@@ -224,7 +224,16 @@ func authenticateRequest(ctx context.Context, authenticator Authenticator, heade
 		return db.User{}, bearerAuthErr
 	}
 
-	return db.User{}, fmt.Errorf("expected Authorization: Bearer <token>, Authorization: ApiKey <key>, or X-API-Key")
+	cookie, cookieErr := r.Cookie(accessCookieName)
+	if cookieErr == nil && cookie.Value != "" {
+		user, err := authenticator.Authenticate(ctx, cookie.Value)
+		if err == nil {
+			return user, nil
+		}
+		return db.User{}, err
+	}
+
+	return db.User{}, fmt.Errorf("expected Authorization: Bearer <token>, Authorization: ApiKey <key>, X-API-Key, or auth cookie")
 }
 
 func authenticateAPIKeyRequest(ctx context.Context, authenticator Authenticator, apiKey string) (db.User, error) {

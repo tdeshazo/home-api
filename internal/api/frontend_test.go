@@ -30,6 +30,12 @@ func TestFrontendRoutes(t *testing.T) {
 			body:        `<script src="/assets/app.js" type="module"></script>`,
 		},
 		{
+			name:        "login route",
+			path:        "/login",
+			contentType: "text/html",
+			body:        `<script src="/assets/login.js" type="module"></script>`,
+		},
+		{
 			name:        "tasks route",
 			path:        "/tasks",
 			contentType: "text/html",
@@ -50,6 +56,12 @@ func TestFrontendRoutes(t *testing.T) {
 		{
 			name:        "tasks asset",
 			path:        "/assets/tasks.js",
+			contentType: "text/javascript",
+			body:        "const state =",
+		},
+		{
+			name:        "login asset",
+			path:        "/assets/login.js",
 			contentType: "text/javascript",
 			body:        "const state =",
 		},
