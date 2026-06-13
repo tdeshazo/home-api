@@ -12,8 +12,10 @@ migrate-up:
 	psql "$(DATABASE_URL)" -f db/migrations/000001_create_users_and_posts.up.sql
 	psql "$(DATABASE_URL)" -f db/migrations/000002_create_tasks.up.sql
 	psql "$(DATABASE_URL)" -f db/migrations/000003_create_api_keys_refresh_tokens.up.sql
+	psql "$(DATABASE_URL)" -f db/migrations/000004_alter_posts_threads.up.sql
 
 migrate-down:
+	psql "$(DATABASE_URL)" -f db/migrations/000004_alter_posts_threads.down.sql
 	psql "$(DATABASE_URL)" -f db/migrations/000003_create_api_keys_refresh_tokens.down.sql
 	psql "$(DATABASE_URL)" -f db/migrations/000002_create_tasks.down.sql
 	psql "$(DATABASE_URL)" -f db/migrations/000001_create_users_and_posts.down.sql
