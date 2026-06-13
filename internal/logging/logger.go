@@ -134,16 +134,26 @@ func replaceAttr(_ []string, a slog.Attr) slog.Attr {
 
 func New(opts Options) (*slog.Logger, closeFunc, error) {
 
-	fd := os.Stderr.Fd()
 	closers := []closeFunc{}
 	close := func() error { return nil }
 
-	handlers := []slog.Handler{
-		tint.NewHandler(os.Stderr, &tint.Options{
-			Level:       slog.LevelDebug,
+	handlerOptions := slog.HandlerOptions{
+		AddSource:   opts.AddSource,
+		Level:       opts.Level,
+		ReplaceAttr: replaceAttr,
+	}
+
+	var handlers []slog.Handler
+	if opts.Writer != nil {
+		handlers = append(handlers, slog.NewJSONHandler(opts.Writer, &handlerOptions))
+	} else {
+		fd := os.Stderr.Fd()
+		handlers = append(handlers, tint.NewHandler(os.Stderr, &tint.Options{
+			AddSource:   opts.AddSource,
+			Level:       opts.Level,
 			ReplaceAttr: replaceAttr,
 			NoColor:     !(isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)),
-		}),
+		}))
 	}
 
 	if opts.File != "" {
@@ -162,7 +172,8 @@ func New(opts Options) (*slog.Logger, closeFunc, error) {
 			return nil
 		}
 		handlers = append(handlers, slog.NewJSONHandler(bufferedFile, &slog.HandlerOptions{
-			Level:       slog.LevelInfo,
+			AddSource:   opts.AddSource,
+			Level:       opts.Level,
 			ReplaceAttr: replaceAttr,
 		}))
 		closers = append(closers, close)
