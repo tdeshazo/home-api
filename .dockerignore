@@ -1,0 +1,9 @@
+.git
+.github
+.env
+.env.*
+bin/
+*.log
+Dockerfile
+docker-compose.yml
+.DS_Store
