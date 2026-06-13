@@ -5,21 +5,21 @@
 package db
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type ApiKey struct {
-	ID         uuid.UUID          `json:"id"`
-	UserID     uuid.UUID          `json:"user_id"`
-	Name       string             `json:"name"`
-	KeyHash    string             `json:"key_hash"`
-	CreatedAt  time.Time          `json:"created_at"`
-	UpdatedAt  time.Time          `json:"updated_at"`
-	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
-	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+	ID         uuid.UUID    `json:"id"`
+	UserID     uuid.UUID    `json:"user_id"`
+	Name       string       `json:"name"`
+	KeyHash    string       `json:"key_hash"`
+	CreatedAt  time.Time    `json:"created_at"`
+	UpdatedAt  time.Time    `json:"updated_at"`
+	LastUsedAt sql.NullTime `json:"last_used_at"`
+	RevokedAt  sql.NullTime `json:"revoked_at"`
 }
 
 type Post struct {
@@ -31,12 +31,12 @@ type Post struct {
 }
 
 type RefreshToken struct {
-	TokenHash string             `json:"token_hash"`
-	UserID    uuid.UUID          `json:"user_id"`
-	ExpiresAt time.Time          `json:"expires_at"`
-	RevokedAt pgtype.Timestamptz `json:"revoked_at"`
-	CreatedAt time.Time          `json:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at"`
+	TokenHash string       `json:"token_hash"`
+	UserID    uuid.UUID    `json:"user_id"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	RevokedAt sql.NullTime `json:"revoked_at"`
+	CreatedAt time.Time    `json:"created_at"`
+	UpdatedAt time.Time    `json:"updated_at"`
 }
 
 type Task struct {
@@ -57,11 +57,11 @@ type TaskAssignment struct {
 }
 
 type TaskCompletion struct {
-	ID          uuid.UUID   `json:"id"`
-	TaskID      uuid.UUID   `json:"task_id"`
-	UserID      uuid.UUID   `json:"user_id"`
-	CompletedOn pgtype.Date `json:"completed_on"`
-	CreatedAt   time.Time   `json:"created_at"`
+	ID          uuid.UUID `json:"id"`
+	TaskID      uuid.UUID `json:"task_id"`
+	UserID      uuid.UUID `json:"user_id"`
+	CompletedOn time.Time `json:"completed_on"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type User struct {

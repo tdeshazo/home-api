@@ -11,7 +11,7 @@ It includes:
 - configurable dev/JWT auth middleware
 - user-owned post authorization
 - Postgres migrations and seed data
-- `sqlc.yaml` for `pgx/v5`
+- `sqlc.yaml` for `database/sql` with `github.com/lib/pq`
 - generated database code under `internal/db`
 
 ## Project layout

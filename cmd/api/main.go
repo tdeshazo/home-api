@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,7 +14,7 @@ import (
 	"github.com/tdeshazo/home-api/internal/db"
 	"github.com/tdeshazo/home-api/internal/logging"
 
-	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -59,19 +60,24 @@ func run() int {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, databaseURL)
+	sqlDB, err := sql.Open("postgres", databaseURL)
 	if err != nil {
 		logger.Error("connect postgres", "error", err)
 		return 1
 	}
-	defer pool.Close()
+	defer sqlDB.Close()
 
-	if err := pool.Ping(ctx); err != nil {
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+	sqlDB.SetConnMaxIdleTime(1 * time.Minute)
+
+	if err := sqlDB.PingContext(ctx); err != nil {
 		logger.Error("ping postgres", "error", err)
 		return 1
 	}
 
-	queries := db.New(pool)
+	queries := db.New(sqlDB)
 	authConfig := api.AuthConfig{
 		Environment:     getenv("APP_ENV", "development"),
 		Mode:            getenv("AUTH_MODE", "dev"),
@@ -87,7 +93,7 @@ func run() int {
 		return 1
 	}
 
-	server := api.NewServer(queries, pool, logger, auth, authConfig)
+	server := api.NewServer(queries, sqlDB, logger, auth, authConfig)
 
 	httpServer := &http.Server{
 		Addr:              ":" + port,

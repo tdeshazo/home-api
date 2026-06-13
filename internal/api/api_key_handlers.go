@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,7 +13,6 @@ import (
 	"github.com/tdeshazo/home-api/internal/db"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const maxAPIKeyIssueAttempts = 3
@@ -116,7 +116,7 @@ func publicAPIKey(row db.CreateAPIKeyRow) apiKeyResponse {
 	}
 }
 
-func nullableTime(value pgtype.Timestamptz) *time.Time {
+func nullableTime(value sql.NullTime) *time.Time {
 	if !value.Valid {
 		return nil
 	}

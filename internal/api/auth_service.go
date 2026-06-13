@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -12,8 +13,7 @@ import (
 	"github.com/tdeshazo/home-api/internal/auth"
 	"github.com/tdeshazo/home-api/internal/db"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/lib/pq"
 )
 
 var (
@@ -24,7 +24,7 @@ var (
 )
 
 type txBeginner interface {
-	Begin(context.Context) (pgx.Tx, error)
+	BeginTx(context.Context, *sql.TxOptions) (*sql.Tx, error)
 }
 
 type authTokenResponse struct {
@@ -148,12 +148,12 @@ func (s *localAuthService) Refresh(ctx context.Context, input refreshRequest) (a
 		return authTokenResponse{}, errors.New("auth transaction manager is not configured")
 	}
 
-	tx, err := s.txBeginner.Begin(ctx)
+	tx, err := s.txBeginner.BeginTx(ctx, nil)
 	if err != nil {
 		return authTokenResponse{}, fmt.Errorf("begin refresh transaction: %w", err)
 	}
 	defer func() {
-		_ = tx.Rollback(ctx)
+		_ = tx.Rollback()
 	}()
 
 	queries := s.queries.WithTx(tx)
@@ -180,7 +180,7 @@ func (s *localAuthService) Refresh(ctx context.Context, input refreshRequest) (a
 		return authTokenResponse{}, err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	if err := tx.Commit(); err != nil {
 		return authTokenResponse{}, fmt.Errorf("commit refresh transaction: %w", err)
 	}
 
@@ -250,6 +250,6 @@ func hashToken(token string) string {
 }
 
 func isUniqueViolation(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+	var pqErr *pq.Error
+	return errors.As(err, &pqErr) && string(pqErr.Code) == "23505"
 }

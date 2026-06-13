@@ -33,7 +33,7 @@ type CreateRefreshTokenParams struct {
 }
 
 func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error) {
-	row := q.db.QueryRow(ctx, createRefreshToken, arg.TokenHash, arg.UserID, arg.ExpiresAt)
+	row := q.db.QueryRowContext(ctx, createRefreshToken, arg.TokenHash, arg.UserID, arg.ExpiresAt)
 	var i RefreshToken
 	err := row.Scan(
 		&i.TokenHash,
@@ -53,7 +53,7 @@ WHERE token_hash = $1
 `
 
 func (q *Queries) GetRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error) {
-	row := q.db.QueryRow(ctx, getRefreshToken, tokenHash)
+	row := q.db.QueryRowContext(ctx, getRefreshToken, tokenHash)
 	var i RefreshToken
 	err := row.Scan(
 		&i.TokenHash,
@@ -76,6 +76,6 @@ WHERE
 `
 
 func (q *Queries) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
-	_, err := q.db.Exec(ctx, revokeRefreshToken, tokenHash)
+	_, err := q.db.ExecContext(ctx, revokeRefreshToken, tokenHash)
 	return err
 }

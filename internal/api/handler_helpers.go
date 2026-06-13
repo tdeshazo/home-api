@@ -1,12 +1,12 @@
 package api
 
 import (
+	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 func parsePathUUID(w http.ResponseWriter, r *http.Request, name string) (uuid.UUID, bool) {
@@ -37,7 +37,7 @@ func parseLimit(r *http.Request, fallback int32) int32 {
 }
 
 func handleDBError(w http.ResponseWriter, err error, notFoundMessage string) {
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, notFoundMessage)
 		return
 	}

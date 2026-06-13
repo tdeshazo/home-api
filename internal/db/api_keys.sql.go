@@ -7,10 +7,10 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createAPIKey = `-- name: CreateAPIKey :one
@@ -33,17 +33,17 @@ type CreateAPIKeyParams struct {
 }
 
 type CreateAPIKeyRow struct {
-	ID         uuid.UUID          `json:"id"`
-	UserID     uuid.UUID          `json:"user_id"`
-	Name       string             `json:"name"`
-	CreatedAt  time.Time          `json:"created_at"`
-	UpdatedAt  time.Time          `json:"updated_at"`
-	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
-	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+	ID         uuid.UUID    `json:"id"`
+	UserID     uuid.UUID    `json:"user_id"`
+	Name       string       `json:"name"`
+	CreatedAt  time.Time    `json:"created_at"`
+	UpdatedAt  time.Time    `json:"updated_at"`
+	LastUsedAt sql.NullTime `json:"last_used_at"`
+	RevokedAt  sql.NullTime `json:"revoked_at"`
 }
 
 func (q *Queries) CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (CreateAPIKeyRow, error) {
-	row := q.db.QueryRow(ctx, createAPIKey, arg.UserID, arg.Name, arg.KeyHash)
+	row := q.db.QueryRowContext(ctx, createAPIKey, arg.UserID, arg.Name, arg.KeyHash)
 	var i CreateAPIKeyRow
 	err := row.Scan(
 		&i.ID,
@@ -66,7 +66,7 @@ RETURNING user_id
 `
 
 func (q *Queries) TouchAPIKey(ctx context.Context, keyHash string) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, touchAPIKey, keyHash)
+	row := q.db.QueryRowContext(ctx, touchAPIKey, keyHash)
 	var user_id uuid.UUID
 	err := row.Scan(&user_id)
 	return user_id, err

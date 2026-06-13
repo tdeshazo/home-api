@@ -7,9 +7,11 @@ package db
 
 import (
 	"context"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/lib/pq"
 )
 
 const availableTasks = `-- name: AvailableTasks :many
@@ -35,12 +37,12 @@ WHERE ta.user_id = $1
 `
 
 type AvailableTasksParams struct {
-	UserID  uuid.UUID   `json:"user_id"`
-	Column2 pgtype.Date `json:"column_2"`
+	UserID  uuid.UUID `json:"user_id"`
+	Column2 time.Time `json:"column_2"`
 }
 
 func (q *Queries) AvailableTasks(ctx context.Context, arg AvailableTasksParams) ([]Task, error) {
-	rows, err := q.db.Query(ctx, availableTasks, arg.UserID, arg.Column2)
+	rows, err := q.db.QueryContext(ctx, availableTasks, arg.UserID, arg.Column2)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +54,7 @@ func (q *Queries) AvailableTasks(ctx context.Context, arg AvailableTasksParams) 
 			&i.ID,
 			&i.Title,
 			&i.FrequencyKind,
-			&i.DaysOfWeek,
+			pq.Array(&i.DaysOfWeek),
 			&i.PointValue,
 			&i.Individual,
 			&i.IsActive,
@@ -62,6 +64,9 @@ func (q *Queries) AvailableTasks(ctx context.Context, arg AvailableTasksParams) 
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -90,13 +95,13 @@ RETURNING
 `
 
 func (q *Queries) CreateTask(ctx context.Context, title string) (Task, error) {
-	row := q.db.QueryRow(ctx, createTask, title)
+	row := q.db.QueryRowContext(ctx, createTask, title)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.FrequencyKind,
-		&i.DaysOfWeek,
+		pq.Array(&i.DaysOfWeek),
 		&i.PointValue,
 		&i.Individual,
 		&i.IsActive,
@@ -112,11 +117,11 @@ WHERE id = $1
 `
 
 func (q *Queries) DeleteTask(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteTask, id)
+	result, err := q.db.ExecContext(ctx, deleteTask, id)
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected(), nil
+	return result.RowsAffected()
 }
 
 const getTask = `-- name: GetTask :one
@@ -135,13 +140,13 @@ WHERE id = $1
 `
 
 func (q *Queries) GetTask(ctx context.Context, id uuid.UUID) (Task, error) {
-	row := q.db.QueryRow(ctx, getTask, id)
+	row := q.db.QueryRowContext(ctx, getTask, id)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.FrequencyKind,
-		&i.DaysOfWeek,
+		pq.Array(&i.DaysOfWeek),
 		&i.PointValue,
 		&i.Individual,
 		&i.IsActive,
@@ -167,7 +172,7 @@ ORDER BY created_at ASC, id ASC
 `
 
 func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
-	rows, err := q.db.Query(ctx, listTasks)
+	rows, err := q.db.QueryContext(ctx, listTasks)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +184,7 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 			&i.ID,
 			&i.Title,
 			&i.FrequencyKind,
-			&i.DaysOfWeek,
+			pq.Array(&i.DaysOfWeek),
 			&i.PointValue,
 			&i.Individual,
 			&i.IsActive,
@@ -189,6 +194,9 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -214,18 +222,18 @@ RETURNING
 `
 
 type UpdateTaskParams struct {
-	Title pgtype.Text `json:"title"`
-	ID    uuid.UUID   `json:"id"`
+	Title sql.NullString `json:"title"`
+	ID    uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, updateTask, arg.Title, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateTask, arg.Title, arg.ID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
 		&i.Title,
 		&i.FrequencyKind,
-		&i.DaysOfWeek,
+		pq.Array(&i.DaysOfWeek),
 		&i.PointValue,
 		&i.Individual,
 		&i.IsActive,
