@@ -8,6 +8,9 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/lmittmann/tint"
+	"github.com/mattn/go-isatty"
+
 	"github.com/tdeshazo/home-api/internal/build"
 )
 
@@ -130,10 +133,17 @@ func replaceAttr(_ []string, a slog.Attr) slog.Attr {
 }
 
 func New(opts Options) (*slog.Logger, closeFunc, error) {
-	writer := io.Writer(os.Stderr)
+
+	fd := os.Stderr.Fd()
+	closers := []closeFunc{}
 	close := func() error { return nil }
-	if opts.Writer != nil {
-		writer = opts.Writer
+
+	handlers := []slog.Handler{
+		tint.NewHandler(os.Stderr, &tint.Options{
+			Level:       slog.LevelDebug,
+			ReplaceAttr: replaceAttr,
+			NoColor:     !(isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)),
+		}),
 	}
 
 	if opts.File != "" {
@@ -142,18 +152,32 @@ func New(opts Options) (*slog.Logger, closeFunc, error) {
 			return nil, close, err
 		}
 		bufferedFile := bufio.NewWriterSize(f, 8192)
-		writer = io.MultiWriter(os.Stderr, bufferedFile)
 		close = func() error {
-			return errors.Join(bufferedFile.Flush(), f.Close())
+			if err := bufferedFile.Flush(); err != nil {
+				return fmt.Errorf("failed to flush log file: %w", err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("failed to close log file: %w", err)
+			}
+			return nil
 		}
+		handlers = append(handlers, slog.NewJSONHandler(bufferedFile, &slog.HandlerOptions{
+			Level:       slog.LevelInfo,
+			ReplaceAttr: replaceAttr,
+		}))
+		closers = append(closers, close)
+	}
+	closer := func() error {
+		var errs []error
+		for _, close := range closers {
+			if err := close(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		return errors.Join(errs...)
 	}
 
-	handler := slog.NewJSONHandler(writer, &slog.HandlerOptions{
-		AddSource:   opts.AddSource,
-		Level:       opts.Level,
-		ReplaceAttr: replaceAttr,
-	})
-	logger := slog.New(handler)
+	logger := slog.New(slog.NewMultiHandler(handlers...))
 
 	env := opts.Env
 	if env == "" {
@@ -168,5 +192,5 @@ func New(opts Options) (*slog.Logger, closeFunc, error) {
 		slog.String("hostname", hostname),
 	)
 
-	return logger, close, nil
+	return logger, closer, nil
 }

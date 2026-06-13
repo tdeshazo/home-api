@@ -1,6 +1,9 @@
 DATABASE_URL ?= postgres://postgres:postgres@localhost:5432/social_api?sslmode=disable
+BIN ?= bin/api
+VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_TIME ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
-.PHONY: docker-up docker-down migrate-up migrate-down seed sqlc run tidy
+.PHONY: build docker-up docker-down migrate-up migrate-down seed sqlc run tidy
 
 docker-up:
 	docker compose up -d
@@ -31,3 +34,11 @@ tidy:
 
 run:
 	go run ./cmd/api
+
+build:
+	mkdir -p $(dir $(BIN))
+	go build \
+		-trimpath \
+		-ldflags="-s -w -X github.com/tdeshazo/home-api/internal/build.GitSHA=$(VERSION) -X github.com/tdeshazo/home-api/internal/build.BuildTime=$(BUILD_TIME)" \
+		-o $(BIN) \
+		./cmd/api
