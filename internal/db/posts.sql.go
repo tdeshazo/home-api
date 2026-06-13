@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -125,10 +126,11 @@ func (q *Queries) GetPostForUser(ctx context.Context, arg GetPostForUserParams) 
 }
 
 const listPosts = `-- name: ListPosts :many
-SELECT id, user_id, body, created_at, updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
 FROM posts
-WHERE parent_post_id IS NULL
-ORDER BY created_at DESC, id DESC
+JOIN users ON users.id = posts.user_id
+WHERE posts.parent_post_id IS NULL
+ORDER BY posts.created_at DESC, posts.id DESC
 LIMIT $1
 OFFSET $2
 `
@@ -138,18 +140,30 @@ type ListPostsParams struct {
 	Offset int32 `json:"offset"`
 }
 
-func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error) {
+type ListPostsRow struct {
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	Handle      string    `json:"handle"`
+	Body        string    `json:"body"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]ListPostsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPosts, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Post{}
+	items := []ListPostsRow{}
 	for rows.Next() {
-		var i Post
+		var i ListPostsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
+			&i.DisplayName,
+			&i.Handle,
 			&i.Body,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -168,10 +182,11 @@ func (q *Queries) ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, e
 }
 
 const listPostsByUser = `-- name: ListPostsByUser :many
-SELECT id, user_id, body, created_at, updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
 FROM posts
-WHERE user_id = $1 AND parent_post_id IS NULL
-ORDER BY created_at DESC, id DESC
+JOIN users ON users.id = posts.user_id
+WHERE posts.user_id = $1 AND posts.parent_post_id IS NULL
+ORDER BY posts.created_at DESC, posts.id DESC
 LIMIT $2
 OFFSET $3
 `
@@ -182,18 +197,30 @@ type ListPostsByUserParams struct {
 	Offset int32     `json:"offset"`
 }
 
-func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]Post, error) {
+type ListPostsByUserRow struct {
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	Handle      string    `json:"handle"`
+	Body        string    `json:"body"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]ListPostsByUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPostsByUser, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Post{}
+	items := []ListPostsByUserRow{}
 	for rows.Next() {
-		var i Post
+		var i ListPostsByUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
+			&i.DisplayName,
+			&i.Handle,
 			&i.Body,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -212,10 +239,11 @@ func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams
 }
 
 const listPostReplies = `-- name: ListPostReplies :many
-SELECT id, user_id, body, created_at, updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
 FROM posts
-WHERE parent_post_id = $1
-ORDER BY created_at ASC, id ASC
+JOIN users ON users.id = posts.user_id
+WHERE posts.parent_post_id = $1
+ORDER BY posts.created_at ASC, posts.id ASC
 LIMIT $2
 OFFSET $3
 `
@@ -226,18 +254,30 @@ type ListPostRepliesParams struct {
 	Offset       int32     `json:"offset"`
 }
 
-func (q *Queries) ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]Post, error) {
+type ListPostRepliesRow struct {
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	Handle      string    `json:"handle"`
+	Body        string    `json:"body"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (q *Queries) ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]ListPostRepliesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPostReplies, arg.ParentPostID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Post{}
+	items := []ListPostRepliesRow{}
 	for rows.Next() {
-		var i Post
+		var i ListPostRepliesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
+			&i.DisplayName,
+			&i.Handle,
 			&i.Body,
 			&i.CreatedAt,
 			&i.UpdatedAt,

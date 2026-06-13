@@ -14,7 +14,12 @@
           <img src="/assets/mark.svg" alt="" />
           <span>Home API</span>
         </a>
-        <div class="session" id="sessionSummary"></div>
+        <div class="topbar-actions">
+          <button class="icon-action" type="button" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+            <span id="themeIcon">◐</span>
+          </button>
+          <div class="session" id="sessionSummary"></div>
+        </div>
       </header>
 
       <main class="workspace">
@@ -92,7 +97,13 @@
             </label>
             <div class="composer-actions">
               <span id="postCounter">0/280</span>
-              <button class="primary-action" type="submit">Post</button>
+              <div class="action-group">
+                <div class="emoji-control" data-emoji-control>
+                  <button class="icon-action" type="button" data-action="toggle-emoji" aria-label="Open emoji selector" aria-expanded="false">🙂</button>
+                  <div class="emoji-popover is-hidden" data-emoji-popover></div>
+                </div>
+                <button class="primary-action" type="submit">Post</button>
+              </div>
             </div>
           </form>
 

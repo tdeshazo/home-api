@@ -25,26 +25,29 @@ FROM posts
 WHERE id = $1 AND user_id = $2;
 
 -- name: ListPosts :many
-SELECT id, user_id, body, created_at, updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
 FROM posts
-WHERE parent_post_id IS NULL
-ORDER BY created_at DESC, id DESC
+JOIN users ON users.id = posts.user_id
+WHERE posts.parent_post_id IS NULL
+ORDER BY posts.created_at DESC, posts.id DESC
 LIMIT $1
 OFFSET $2;
 
 -- name: ListPostsByUser :many
-SELECT id, user_id, body, created_at, updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
 FROM posts
-WHERE user_id = $1 AND parent_post_id IS NULL
-ORDER BY created_at DESC, id DESC
+JOIN users ON users.id = posts.user_id
+WHERE posts.user_id = $1 AND posts.parent_post_id IS NULL
+ORDER BY posts.created_at DESC, posts.id DESC
 LIMIT $2
 OFFSET $3;
 
 -- name: ListPostReplies :many
-SELECT id, user_id, body, created_at, updated_at
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at
 FROM posts
-WHERE parent_post_id = $1
-ORDER BY created_at ASC, id ASC
+JOIN users ON users.id = posts.user_id
+WHERE posts.parent_post_id = $1
+ORDER BY posts.created_at ASC, posts.id ASC
 LIMIT $2
 OFFSET $3;
 

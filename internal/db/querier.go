@@ -26,9 +26,9 @@ type Querier interface {
 	GetTask(ctx context.Context, id uuid.UUID) (Task, error)
 	GetUser(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
-	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
-	ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]Post, error)
-	ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]Post, error)
+	ListPosts(ctx context.Context, arg ListPostsParams) ([]ListPostsRow, error)
+	ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]ListPostsByUserRow, error)
+	ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]ListPostRepliesRow, error)
 	ListTasks(ctx context.Context) ([]Task, error)
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	TouchAPIKey(ctx context.Context, keyHash string) (uuid.UUID, error)

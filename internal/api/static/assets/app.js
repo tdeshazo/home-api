@@ -4,8 +4,17 @@ const state = {
   posts: [],
   hasMore: false,
   replies: {},
+  theme: readTheme(),
   session: readSession(),
 };
+
+const EMOJI_GROUPS = [
+  { label: "Smileys", items: ["😀", "😄", "😂", "🤣", "😊", "😍", "🥰", "😎", "🤔", "😅", "😭", "😤"] },
+  { label: "Gestures", items: ["👍", "👎", "👏", "🙌", "🙏", "🤝", "💪", "👀", "✌️", "🤞", "🤌", "🫶"] },
+  { label: "Reactions", items: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🔥", "✨", "💯", "✅", "❌", "⚠️"] },
+  { label: "Objects", items: ["💡", "📌", "📣", "📝", "📚", "🔍", "🧠", "🛠️", "🚀", "🎯", "⏰", "☕"] },
+  { label: "Nature", items: ["🌱", "🌿", "🌻", "🌙", "☀️", "⭐", "🌈", "⚡", "🌊", "🍕", "🍩", "🎉"] },
+];
 
 const els = {
   sessionSummary: document.querySelector("#sessionSummary"),
@@ -16,6 +25,8 @@ const els = {
   prevPage: document.querySelector("#prevPage"),
   nextPage: document.querySelector("#nextPage"),
   refreshPosts: document.querySelector("#refreshPosts"),
+  themeToggle: document.querySelector("#themeToggle"),
+  themeIcon: document.querySelector("#themeIcon"),
   postForm: document.querySelector("#postForm"),
   postBody: document.querySelector("#postForm textarea"),
   postCounter: document.querySelector("#postCounter"),
@@ -32,6 +43,9 @@ const els = {
 init();
 
 function init() {
+  document.querySelectorAll("[data-emoji-popover]").forEach((popover) => {
+    popover.innerHTML = renderEmojiPalette();
+  });
   els.authTabs.forEach((button) => {
     button.addEventListener("click", () => selectAuthTab(button.dataset.authTab));
   });
@@ -47,9 +61,11 @@ function init() {
   });
   els.postForm.addEventListener("submit", handleCreatePost);
   els.postBody.addEventListener("input", updatePostCounter);
+  els.postForm.addEventListener("click", handleComposerClick);
   els.postsList.addEventListener("click", handleTimelineClick);
   els.postsList.addEventListener("input", handleTimelineInput);
   els.postsList.addEventListener("submit", handleReplySubmit);
+  els.themeToggle.addEventListener("click", toggleTheme);
   els.refreshPosts.addEventListener("click", () => loadPosts());
   els.prevPage.addEventListener("click", () => {
     state.offset = Math.max(0, state.offset - state.limit);
@@ -60,7 +76,9 @@ function init() {
     state.offset += state.limit;
     loadPosts();
   });
+  document.addEventListener("click", closeEmojiPopovers);
 
+  renderTheme();
   updatePostCounter();
   renderSession();
   loadPosts();
@@ -77,6 +95,17 @@ function selectAuthTab(tab) {
     view.classList.toggle("is-hidden", view.dataset.authView !== tab);
   });
   setAuthStatus("");
+}
+
+function toggleTheme() {
+  state.theme = state.theme === "dark" ? "light" : "dark";
+  writeTheme(state.theme);
+  renderTheme();
+}
+
+function renderTheme() {
+  document.documentElement.dataset.theme = state.theme;
+  els.themeIcon.textContent = state.theme === "dark" ? "☀" : "◐";
 }
 
 async function handleLogin(event) {
@@ -172,6 +201,22 @@ async function hydrateCurrentUser() {
   }
 }
 
+function handleComposerClick(event) {
+  const emojiButton = event.target.closest("[data-emoji]");
+  if (emojiButton) {
+    insertEmoji(els.postBody, emojiButton.dataset.emoji);
+    updatePostCounter();
+    closeEmojiPopovers();
+    return;
+  }
+
+  const toggle = event.target.closest("[data-action='toggle-emoji']");
+  if (toggle) {
+    event.stopPropagation();
+    toggleEmojiPopover(toggle);
+  }
+}
+
 async function handleCreatePost(event) {
   event.preventDefault();
   const body = els.postBody.value.trim();
@@ -244,7 +289,8 @@ function renderPosts() {
 }
 
 function renderPost(post, depth = 0) {
-  const initials = post.user_id.slice(0, 2).toUpperCase();
+  const author = authorName(post);
+  const initials = initialsFor(author);
   const timestamp = formatDate(post.created_at);
   const replies = replyState(post.id);
   const expanded = replies.expanded;
@@ -258,7 +304,7 @@ function renderPost(post, depth = 0) {
       <div class="post-header">
         <span class="post-user">
           <span class="avatar">${escapeHTML(initials)}</span>
-          <span>${escapeHTML(shortID(post.user_id))}</span>
+          <span>${escapeHTML(author)}</span>
         </span>
         <time datetime="${escapeHTML(post.created_at)}">${escapeHTML(timestamp)}</time>
       </div>
@@ -300,13 +346,34 @@ function renderReplyForm(postID) {
       <textarea name="body" maxlength="280" rows="3" required></textarea>
       <div class="composer-actions">
         <span>0/280</span>
-        <button class="primary-action" type="submit">Reply</button>
+        <div class="action-group">
+          ${renderEmojiControl()}
+          <button class="primary-action" type="submit">Reply</button>
+        </div>
       </div>
     </form>
   `;
 }
 
 function handleTimelineClick(event) {
+  const emojiButton = event.target.closest(".reply-form [data-emoji]");
+  if (emojiButton) {
+    const form = emojiButton.closest(".reply-form");
+    const textarea = form.querySelector("textarea");
+    insertEmoji(textarea, emojiButton.dataset.emoji);
+    const counter = form.querySelector(".composer-actions span");
+    counter.textContent = `${textarea.value.length}/280`;
+    closeEmojiPopovers();
+    return;
+  }
+
+  const emojiToggle = event.target.closest(".reply-form [data-action='toggle-emoji']");
+  if (emojiToggle) {
+    event.stopPropagation();
+    toggleEmojiPopover(emojiToggle);
+    return;
+  }
+
   const button = event.target.closest("[data-action]");
   if (!button) return;
 
@@ -404,6 +471,57 @@ function updatePostCounter() {
   els.postCounter.textContent = `${els.postBody.value.length}/280`;
 }
 
+function insertEmoji(textarea, emoji) {
+  if (!emoji) return;
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  const next = `${textarea.value.slice(0, start)}${emoji}${textarea.value.slice(end)}`;
+  if (next.length > textarea.maxLength) return;
+  textarea.value = next;
+  const cursor = start + emoji.length;
+  textarea.focus();
+  textarea.setSelectionRange(cursor, cursor);
+}
+
+function renderEmojiControl() {
+  return `
+    <div class="emoji-control" data-emoji-control>
+      <button class="icon-action" type="button" data-action="toggle-emoji" aria-label="Open emoji selector" aria-expanded="false">🙂</button>
+      <div class="emoji-popover is-hidden" data-emoji-popover>${renderEmojiPalette()}</div>
+    </div>
+  `;
+}
+
+function renderEmojiPalette() {
+  return EMOJI_GROUPS.map((group) => `
+    <div class="emoji-group">
+      <div class="emoji-group-title">${escapeHTML(group.label)}</div>
+      <div class="emoji-grid">
+        ${group.items.map((emoji) => `<button type="button" data-emoji="${escapeHTML(emoji)}">${escapeHTML(emoji)}</button>`).join("")}
+      </div>
+    </div>
+  `).join("");
+}
+
+function toggleEmojiPopover(toggle) {
+  const control = toggle.closest("[data-emoji-control]");
+  const popover = control.querySelector("[data-emoji-popover]");
+  const willOpen = popover.classList.contains("is-hidden");
+  closeEmojiPopovers();
+  popover.classList.toggle("is-hidden", !willOpen);
+  toggle.setAttribute("aria-expanded", String(willOpen));
+}
+
+function closeEmojiPopovers(event) {
+  if (event?.target.closest("[data-emoji-control]")) return;
+  document.querySelectorAll("[data-emoji-popover]").forEach((popover) => {
+    popover.classList.add("is-hidden");
+  });
+  document.querySelectorAll("[data-action='toggle-emoji']").forEach((button) => {
+    button.setAttribute("aria-expanded", "false");
+  });
+}
+
 async function apiFetch(path, options = {}) {
   const headers = new Headers(options.headers ?? {});
   headers.set("Accept", "application/json");
@@ -447,6 +565,16 @@ function readSession() {
   }
 }
 
+function readTheme() {
+  const saved = localStorage.getItem("home-api-theme");
+  if (saved === "dark" || saved === "light") return saved;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function writeTheme(theme) {
+  localStorage.setItem("home-api-theme", theme);
+}
+
 function writeSession(session) {
   if (!session) {
     localStorage.removeItem("home-api-session");
@@ -459,8 +587,15 @@ function setAuthStatus(message) {
   els.authStatus.textContent = message;
 }
 
-function shortID(value) {
-  return value ? `${value.slice(0, 8)}...${value.slice(-4)}` : "unknown";
+function authorName(post) {
+  return post.display_name || post.handle || "Unknown user";
+}
+
+function initialsFor(name) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return `${words[0][0]}${words[1][0]}`.toUpperCase();
 }
 
 function formatDate(value) {
