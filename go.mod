@@ -1,6 +1,6 @@
 module github.com/tdeshazo/home-api
 
-go 1.26.1
+go 1.26.4
 
 require (
 	github.com/alexedwards/argon2id v1.0.0
