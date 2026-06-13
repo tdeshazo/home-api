@@ -17,6 +17,12 @@ sql:
               import: "github.com/google/uuid"
               type: "UUID"
           - db_type: "pg_catalog.timestamptz"
+            nullable: false
+            go_type:
+              import: "time"
+              type: "Time"
+          - db_type: "timestamptz"
+            nullable: false
             go_type:
               import: "time"
               type: "Time"

@@ -6,11 +6,12 @@ It includes:
 
 - Go `net/http` routing
 - structured JSON logging and request middleware
+- local email/password auth endpoints with JWT access tokens and refresh tokens
 - configurable dev/JWT auth middleware
 - user-owned post authorization
 - Postgres migrations and seed data
 - `sqlc.yaml` for `pgx/v5`
-- hand-written placeholder generated files under `internal/db` so the shape is clear before you run `sqlc generate`
+- generated database code under `internal/db`
 
 ## Project layout
 
@@ -22,13 +23,22 @@ It includes:
 ├── db
 │   ├── migrations
 │   │   ├── 000001_create_users_and_posts.up.sql
-│   │   └── 000001_create_users_and_posts.down.sql
+│   │   ├── 000001_create_users_and_posts.down.sql
+│   │   ├── 000002_create_tasks.up.sql
+│   │   ├── 000002_create_tasks.down.sql
+│   │   ├── 000003_create_api_keys_refresh_tokens.up.sql
+│   │   └── 000003_create_api_keys_refresh_tokens.down.sql
 │   ├── queries
 │   │   ├── posts.sql
+│   │   ├── refresh_tokens.sql
+│   │   ├── tasks.sql
 │   │   └── users.sql
 │   └── seed.sql
 ├── internal
 │   ├── api
+│   │   ├── auth.go
+│   │   ├── auth_handlers.go
+│   │   ├── auth_service.go
 │   │   ├── context.go
 │   │   ├── handler_helpers.go
 │   │   ├── health_handlers.go
@@ -41,6 +51,8 @@ It includes:
 │       ├── db.go
 │       ├── models.go
 │       ├── posts.sql.go
+│       ├── refresh_tokens.sql.go
+│       ├── tasks.sql.go
 │       └── users.sql.go
 ├── docker-compose.yml
 ├── go.mod
@@ -132,9 +144,42 @@ AUTH_MODE=jwt
 JWT_SECRET=change-me
 JWT_ISSUER=social-api
 JWT_AUDIENCE=social-api-api
+AUTH_ACCESS_TOKEN_TTL=15m
+AUTH_REFRESH_TOKEN_TTL=720h
 ```
 
 This scaffold validates HS256 JWTs where the `sub` claim is the user UUID. For a production identity provider, prefer asymmetric signing such as RS256/ES256 and validate keys through JWKS.
+
+Auth endpoints are available only when `AUTH_MODE=jwt` and JWT config is set. They return JSON access and refresh tokens:
+
+```text
+POST /auth/register
+POST /auth/login
+POST /auth/refresh
+POST /auth/logout
+```
+
+Register:
+
+```bash
+curl -X POST http://localhost:8080/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"new@example.com","handle":"new_user","display_name":"New User","password":"password123"}'
+```
+
+Login:
+
+```bash
+curl -X POST http://localhost:8080/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"new@example.com","password":"password123"}'
+```
+
+Refresh and logout both accept:
+
+```json
+{"refresh_token":"paste-refresh-token-here"}
+```
 
 Generate a local test JWT:
 

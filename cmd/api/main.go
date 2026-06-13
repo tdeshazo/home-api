@@ -45,6 +45,16 @@ func run() int {
 
 	databaseURL := getenv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/social_api?sslmode=disable")
 	port := getenv("PORT", "8080")
+	accessTokenTTL, err := parseDuration("AUTH_ACCESS_TOKEN_TTL", 15*time.Minute)
+	if err != nil {
+		logger.Error("configure auth token ttl", "error", err)
+		return 1
+	}
+	refreshTokenTTL, err := parseDuration("AUTH_REFRESH_TOKEN_TTL", 720*time.Hour)
+	if err != nil {
+		logger.Error("configure auth refresh ttl", "error", err)
+		return 1
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -62,19 +72,22 @@ func run() int {
 	}
 
 	queries := db.New(pool)
-	auth, err := api.NewAuthenticator(queries, api.AuthConfig{
-		Environment: getenv("APP_ENV", "development"),
-		Mode:        getenv("AUTH_MODE", "dev"),
-		JWTSecret:   os.Getenv("JWT_SECRET"),
-		JWTIssuer:   os.Getenv("JWT_ISSUER"),
-		JWTAudience: os.Getenv("JWT_AUDIENCE"),
-	})
+	authConfig := api.AuthConfig{
+		Environment:     getenv("APP_ENV", "development"),
+		Mode:            getenv("AUTH_MODE", "dev"),
+		JWTSecret:       os.Getenv("JWT_SECRET"),
+		JWTIssuer:       os.Getenv("JWT_ISSUER"),
+		JWTAudience:     os.Getenv("JWT_AUDIENCE"),
+		AccessTokenTTL:  accessTokenTTL,
+		RefreshTokenTTL: refreshTokenTTL,
+	}
+	auth, err := api.NewAuthenticator(queries, authConfig)
 	if err != nil {
 		logger.Error("configure auth", "error", err)
 		return 1
 	}
 
-	server := api.NewServer(queries, logger, auth)
+	server := api.NewServer(queries, pool, logger, auth, authConfig)
 
 	httpServer := &http.Server{
 		Addr:              ":" + port,
@@ -112,4 +125,20 @@ func parseLogLevel(raw string) (slog.Level, error) {
 	default:
 		return slog.LevelInfo, fmt.Errorf("unsupported LOG_LEVEL %q; expected debug, info, warn, or error", raw)
 	}
+}
+
+func parseDuration(key string, fallback time.Duration) (time.Duration, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+
+	value, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", key, err)
+	}
+	if value <= 0 {
+		return 0, fmt.Errorf("%s must be greater than zero", key)
+	}
+	return value, nil
 }

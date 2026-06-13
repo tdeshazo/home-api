@@ -8,16 +8,18 @@ import (
 )
 
 type Server struct {
-	queries *db.Queries
-	logger  *slog.Logger
-	auth    Authenticator
+	queries       *db.Queries
+	logger        *slog.Logger
+	auth          Authenticator
+	authEndpoints authEndpointService
 }
 
-func NewServer(queries *db.Queries, logger *slog.Logger, auth Authenticator) *Server {
+func NewServer(queries *db.Queries, txBeginner txBeginner, logger *slog.Logger, auth Authenticator, authConfig AuthConfig) *Server {
 	return &Server{
-		queries: queries,
-		logger:  logger,
-		auth:    auth,
+		queries:       queries,
+		logger:        logger,
+		auth:          auth,
+		authEndpoints: newLocalAuthService(queries, txBeginner, authConfig),
 	}
 }
 
@@ -31,6 +33,11 @@ func (s *Server) Routes() http.Handler {
 	common := []Middleware{requestID, logRequests, recoverPanics}
 
 	mux.Handle("GET /healthz", chain(http.HandlerFunc(s.healthz), common...))
+	mux.Handle("POST /auth/register", chain(http.HandlerFunc(s.register), common...))
+	mux.Handle("POST /auth/login", chain(http.HandlerFunc(s.login), common...))
+	mux.Handle("POST /auth/refresh", chain(http.HandlerFunc(s.refresh), common...))
+	mux.Handle("POST /auth/logout", chain(http.HandlerFunc(s.logout), common...))
+
 	mux.Handle("GET /posts", chain(http.HandlerFunc(s.listPosts), common...))
 	mux.Handle("GET /posts/{id}", chain(http.HandlerFunc(s.getPost), common...))
 	mux.Handle("GET /users/{userID}/posts", chain(http.HandlerFunc(s.listPostsByUser), common...))

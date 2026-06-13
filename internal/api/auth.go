@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"social-api/internal/auth"
 	"social-api/internal/db"
@@ -25,6 +26,9 @@ type AuthConfig struct {
 
 	JWTIssuer   string
 	JWTAudience string
+
+	AccessTokenTTL  time.Duration
+	RefreshTokenTTL time.Duration
 }
 
 type Authenticator interface {

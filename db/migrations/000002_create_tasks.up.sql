@@ -1,27 +1,28 @@
 CREATE TABLE IF NOT EXISTS tasks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title text NOT NULL,
-    frequency_type text NOT NULL DEFAULT 'once',
+    frequency_kind text NOT NULL DEFAULT 'once',
     days_of_week smallint[] NOT NULL DEFAULT '{}',
     point_value int NOT NULL DEFAULT 0,
     individual boolean NOT NULL DEFAULT false,
     is_active boolean NOT NULL DEFAULT true,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
 
-    CONSTRAINT task_frequency_type_check CHECK (
-        frequency_type IN (
-        'once',
-        'daily',
-        'weekly',
-        'monthly',
-        'yearly',
-        'adaptive',
-        'interval',
-        'days_of_the_week',
-        'day_of_the_month',
-        'trigger',
-        'no_repeat'
+    CONSTRAINT tasks_frequency_kind_check CHECK (
+        frequency_kind IN (
+            'once',
+            'daily',
+            'weekly',
+            'monthly',
+            'yearly',
+            'adaptive',
+            'interval',
+            'days_of_the_week',
+            'day_of_the_month',
+            'trigger',
+            'no_repeat'
+        )
     )
 );
 
