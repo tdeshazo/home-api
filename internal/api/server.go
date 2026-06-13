@@ -34,10 +34,15 @@ func (s *Server) Routes() http.Handler {
 	public := func(pattern string, h http.HandlerFunc) {
 		mux.Handle(pattern, chain(h, common...))
 	}
+	publicHandler := func(pattern string, h http.Handler) {
+		mux.Handle(pattern, chain(h, common...))
+	}
 	protected := func(pattern string, h http.HandlerFunc) {
 		mux.Handle(pattern, chain(h, append(common, requireAuth)...))
 	}
 
+	public("GET /", s.frontend)
+	publicHandler("GET /assets/", http.StripPrefix("/assets/", frontendAssets()))
 	public("GET /healthz", s.healthz)
 	public("POST /auth/register", s.register)
 	public("POST /auth/login", s.login)
@@ -45,12 +50,14 @@ func (s *Server) Routes() http.Handler {
 	public("POST /auth/logout", s.logout)
 	public("GET /posts", s.listPosts)
 	public("GET /posts/{id}", s.getPost)
+	public("GET /posts/{id}/replies", s.listPostReplies)
 	public("GET /users/{userID}/posts", s.listPostsByUser)
 
 	protected("GET /me", s.me)
 	protected("POST /api-keys", s.createAPIKey)
 	protected("GET /me/posts", s.listMyPosts)
 	protected("POST /posts", s.createPost)
+	protected("POST /posts/{id}/replies", s.createReply)
 	protected("PATCH /posts/{id}", s.updatePost)
 	protected("DELETE /posts/{id}", s.deletePost)
 

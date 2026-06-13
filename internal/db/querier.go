@@ -14,6 +14,7 @@ type Querier interface {
 	AvailableTasks(ctx context.Context, arg AvailableTasksParams) ([]Task, error)
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (CreateAPIKeyRow, error)
 	CreatePost(ctx context.Context, arg CreatePostParams) (Post, error)
+	CreateReply(ctx context.Context, arg CreateReplyParams) (Post, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateTask(ctx context.Context, title string) (Task, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
@@ -27,6 +28,7 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	ListPosts(ctx context.Context, arg ListPostsParams) ([]Post, error)
 	ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]Post, error)
+	ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]Post, error)
 	ListTasks(ctx context.Context) ([]Task, error)
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	TouchAPIKey(ctx context.Context, keyHash string) (uuid.UUID, error)

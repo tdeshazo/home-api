@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Home API</title>
+    <link rel="icon" href="/assets/mark.svg" />
+    <link rel="stylesheet" href="/assets/app.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Home API">
+          <img src="/assets/mark.svg" alt="" />
+          <span>Home API</span>
+        </a>
+        <div class="session" id="sessionSummary"></div>
+      </header>
+
+      <main class="workspace">
+        <section class="auth-panel" aria-labelledby="authTitle">
+          <div class="panel-head">
+            <h1 id="authTitle">Account</h1>
+            <div class="mode-tabs" role="tablist" aria-label="Authentication mode">
+              <button class="tab is-active" type="button" data-auth-tab="login">Login</button>
+              <button class="tab" type="button" data-auth-tab="register">Register</button>
+              <button class="tab" type="button" data-auth-tab="dev">Dev</button>
+            </div>
+          </div>
+
+          <form class="auth-form" id="loginForm" data-auth-view="login">
+            <label>
+              Email
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Password
+              <input name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <button class="primary-action" type="submit">Login</button>
+          </form>
+
+          <form class="auth-form is-hidden" id="registerForm" data-auth-view="register">
+            <label>
+              Email
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Handle
+              <input name="handle" type="text" autocomplete="username" minlength="3" maxlength="32" required />
+            </label>
+            <label>
+              Display name
+              <input name="display_name" type="text" autocomplete="name" required />
+            </label>
+            <label>
+              Password
+              <input name="password" type="password" autocomplete="new-password" minlength="8" required />
+            </label>
+            <button class="primary-action" type="submit">Register</button>
+          </form>
+
+          <div class="dev-auth is-hidden" data-auth-view="dev">
+            <div class="dev-grid">
+              <button type="button" class="secondary-action" data-dev-user="00000000-0000-0000-0000-000000000001">Alice</button>
+              <button type="button" class="secondary-action" data-dev-user="00000000-0000-0000-0000-000000000002">Bob</button>
+            </div>
+            <label>
+              User UUID
+              <input id="devUserID" type="text" value="00000000-0000-0000-0000-000000000001" />
+            </label>
+            <button class="primary-action" type="button" id="devLogin">Use dev token</button>
+          </div>
+
+          <button class="ghost-action" type="button" id="logoutButton">Logout</button>
+          <p class="status-line" id="authStatus" role="status"></p>
+        </section>
+
+        <section class="timeline-panel" aria-labelledby="timelineTitle">
+          <div class="panel-head timeline-head">
+            <div>
+              <h2 id="timelineTitle">Timeline</h2>
+              <p id="timelineMeta"></p>
+            </div>
+            <button class="secondary-action" type="button" id="refreshPosts">Refresh</button>
+          </div>
+
+          <form class="composer" id="postForm">
+            <label>
+              New post
+              <textarea name="body" maxlength="280" rows="4" required></textarea>
+            </label>
+            <div class="composer-actions">
+              <span id="postCounter">0/280</span>
+              <button class="primary-action" type="submit">Post</button>
+            </div>
+          </form>
+
+          <div class="timeline-list" id="postsList" aria-live="polite"></div>
+
+          <div class="pager">
+            <button class="secondary-action" type="button" id="prevPage">Previous</button>
+            <span id="pageSummary"></span>
+            <button class="secondary-action" type="button" id="nextPage">Next</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/assets/app.js" type="module"></script>
+  </body>
+</html>

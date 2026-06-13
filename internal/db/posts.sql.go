@@ -35,6 +35,37 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 	return i, err
 }
 
+const createReply = `-- name: CreateReply :one
+WITH parent AS (
+    SELECT id, COALESCE(root_post_id, id) AS root_post_id
+    FROM posts
+    WHERE id = $1
+)
+INSERT INTO posts (user_id, body, parent_post_id, root_post_id)
+SELECT $2, $3, parent.id, parent.root_post_id
+FROM parent
+RETURNING id, user_id, body, created_at, updated_at
+`
+
+type CreateReplyParams struct {
+	ID     uuid.UUID `json:"id"`
+	UserID uuid.UUID `json:"user_id"`
+	Body   string    `json:"body"`
+}
+
+func (q *Queries) CreateReply(ctx context.Context, arg CreateReplyParams) (Post, error) {
+	row := q.db.QueryRowContext(ctx, createReply, arg.ID, arg.UserID, arg.Body)
+	var i Post
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Body,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deletePostForUser = `-- name: DeletePostForUser :exec
 DELETE FROM posts
 WHERE id = $1 AND user_id = $2
@@ -153,6 +184,50 @@ type ListPostsByUserParams struct {
 
 func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]Post, error) {
 	rows, err := q.db.QueryContext(ctx, listPostsByUser, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Post{}
+	for rows.Next() {
+		var i Post
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Body,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPostReplies = `-- name: ListPostReplies :many
+SELECT id, user_id, body, created_at, updated_at
+FROM posts
+WHERE parent_post_id = $1
+ORDER BY created_at ASC, id ASC
+LIMIT $2
+OFFSET $3
+`
+
+type ListPostRepliesParams struct {
+	ParentPostID uuid.UUID `json:"parent_post_id"`
+	Limit        int32     `json:"limit"`
+	Offset       int32     `json:"offset"`
+}
+
+func (q *Queries) ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]Post, error) {
+	rows, err := q.db.QueryContext(ctx, listPostReplies, arg.ParentPostID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
