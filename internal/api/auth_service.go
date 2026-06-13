@@ -157,7 +157,7 @@ func (s *localAuthService) Refresh(ctx context.Context, input refreshRequest) (a
 	}()
 
 	queries := s.queries.WithTx(tx)
-	tokenHash := hashRefreshToken(input.RefreshToken)
+	tokenHash := hashToken(input.RefreshToken)
 	refreshToken, err := queries.GetRefreshToken(ctx, tokenHash)
 	if err != nil {
 		return authTokenResponse{}, errInvalidRefreshToken
@@ -195,7 +195,7 @@ func (s *localAuthService) Logout(ctx context.Context, input logoutRequest) erro
 		return nil
 	}
 
-	if err := s.queries.RevokeRefreshToken(ctx, hashRefreshToken(input.RefreshToken)); err != nil {
+	if err := s.queries.RevokeRefreshToken(ctx, hashToken(input.RefreshToken)); err != nil {
 		return fmt.Errorf("revoke refresh token: %w", err)
 	}
 	return nil
@@ -227,7 +227,7 @@ func (s *localAuthService) issueTokenPair(ctx context.Context, queries *db.Queri
 	}
 
 	if _, err := queries.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
-		TokenHash: hashRefreshToken(refreshToken),
+		TokenHash: hashToken(refreshToken),
 		UserID:    user.ID,
 		ExpiresAt: refreshExpiresAt,
 	}); err != nil {
@@ -244,7 +244,7 @@ func (s *localAuthService) issueTokenPair(ctx context.Context, queries *db.Queri
 	}, nil
 }
 
-func hashRefreshToken(token string) string {
+func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }

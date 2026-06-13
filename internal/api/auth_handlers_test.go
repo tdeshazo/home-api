@@ -79,6 +79,30 @@ func TestValidateRegisterRequest(t *testing.T) {
 	}
 }
 
+func TestValidateCreateAPIKeyRequest(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     createAPIKeyRequest
+		wantError bool
+	}{
+		{name: "valid", input: createAPIKeyRequest{Name: "CLI"}},
+		{name: "blank", input: createAPIKeyRequest{Name: ""}, wantError: true},
+		{name: "too long", input: createAPIKeyRequest{Name: strings.Repeat("a", 101)}, wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateCreateAPIKeyRequest(tt.input)
+			if tt.wantError && err == nil {
+				t.Fatal("expected validation error")
+			}
+			if !tt.wantError && err != nil {
+				t.Fatalf("expected valid input, got %v", err)
+			}
+		})
+	}
+}
+
 func TestAuthHandlersMapErrors(t *testing.T) {
 	tests := []struct {
 		name       string

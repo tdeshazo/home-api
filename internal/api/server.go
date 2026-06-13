@@ -43,6 +43,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /users/{userID}/posts", chain(http.HandlerFunc(s.listPostsByUser), common...))
 
 	mux.Handle("GET /me", chain(http.HandlerFunc(s.me), append(common, requireAuth)...))
+	mux.Handle("POST /api-keys", chain(http.HandlerFunc(s.createAPIKey), append(common, requireAuth)...))
 	mux.Handle("GET /me/posts", chain(http.HandlerFunc(s.listMyPosts), append(common, requireAuth)...))
 	mux.Handle("POST /posts", chain(http.HandlerFunc(s.createPost), append(common, requireAuth)...))
 	mux.Handle("PATCH /posts/{id}", chain(http.HandlerFunc(s.updatePost), append(common, requireAuth)...))

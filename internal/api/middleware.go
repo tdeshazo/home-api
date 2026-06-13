@@ -8,7 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
-	"strings"
+	authpkg "social-api/internal/auth"
+	"social-api/internal/db"
 	"time"
 )
 
@@ -188,24 +189,10 @@ func authMiddleware(auth Authenticator) Middleware {
 				return
 			}
 
-			const prefix = "Bearer "
-			if !strings.HasPrefix(authHeader, prefix) {
-				SetLogError(r.Context(), fmt.Errorf("expected Authorization: Bearer <token>"))
-				writeError(w, http.StatusUnauthorized, "expected Authorization: Bearer <token>")
-				return
-			}
-
-			bearerToken := strings.TrimSpace(strings.TrimPrefix(authHeader, prefix))
-			if bearerToken == "" {
-				SetLogError(r.Context(), fmt.Errorf("empty bearer token"))
-				writeError(w, http.StatusUnauthorized, "empty bearer token")
-				return
-			}
-
-			user, err := auth.Authenticate(r.Context(), bearerToken)
+			user, err := authenticateRequest(r.Context(), auth, r.Header)
 			if err != nil {
 				SetLogError(r.Context(), err)
-				writeError(w, http.StatusUnauthorized, "invalid or expired token")
+				writeError(w, http.StatusUnauthorized, "invalid or expired credentials")
 				return
 			}
 
@@ -214,4 +201,25 @@ func authMiddleware(auth Authenticator) Middleware {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func authenticateRequest(ctx context.Context, authenticator Authenticator, headers http.Header) (db.User, error) {
+	bearerToken, bearerErr := authpkg.GetBearerToken(headers)
+	if bearerErr == nil {
+		if bearerToken == "" {
+			return db.User{}, fmt.Errorf("empty bearer token")
+		}
+		return authenticator.Authenticate(ctx, bearerToken)
+	}
+
+	apiKey, apiKeyErr := authpkg.GetAPIKey(headers)
+	if apiKeyErr == nil {
+		apiKeyAuth, ok := authenticator.(apiKeyAuthenticator)
+		if !ok {
+			return db.User{}, fmt.Errorf("api key authentication is not configured")
+		}
+		return apiKeyAuth.AuthenticateAPIKey(ctx, apiKey)
+	}
+
+	return db.User{}, fmt.Errorf("expected Authorization: Bearer <token> or ApiKey <key>")
 }

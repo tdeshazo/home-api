@@ -35,6 +35,10 @@ type Authenticator interface {
 	Authenticate(ctx context.Context, bearerToken string) (db.User, error)
 }
 
+type apiKeyAuthenticator interface {
+	AuthenticateAPIKey(ctx context.Context, apiKey string) (db.User, error)
+}
+
 func NewAuthenticator(queries *db.Queries, cfg AuthConfig) (Authenticator, error) {
 	mode := strings.ToLower(strings.TrimSpace(cfg.Mode))
 	if mode == "" {
@@ -98,6 +102,10 @@ func (a DevAuthenticator) Authenticate(ctx context.Context, bearerToken string) 
 	return user, nil
 }
 
+func (a DevAuthenticator) AuthenticateAPIKey(ctx context.Context, apiKey string) (db.User, error) {
+	return authenticateAPIKey(ctx, a.queries, apiKey)
+}
+
 type JWTAuthenticator struct {
 	queries  *db.Queries
 	secret   []byte
@@ -119,6 +127,28 @@ func (a JWTAuthenticator) Authenticate(ctx context.Context, bearerToken string) 
 	user, err := a.queries.GetUser(ctx, userID)
 	if err != nil {
 		return db.User{}, errors.New("unknown user")
+	}
+
+	return user, nil
+}
+
+func (a JWTAuthenticator) AuthenticateAPIKey(ctx context.Context, apiKey string) (db.User, error) {
+	return authenticateAPIKey(ctx, a.queries, apiKey)
+}
+
+func authenticateAPIKey(ctx context.Context, queries *db.Queries, apiKey string) (db.User, error) {
+	if strings.TrimSpace(apiKey) == "" {
+		return db.User{}, errors.New("empty api key")
+	}
+
+	userID, err := queries.TouchAPIKey(ctx, hashToken(apiKey))
+	if err != nil {
+		return db.User{}, errors.New("invalid api key")
+	}
+
+	user, err := queries.GetUser(ctx, userID)
+	if err != nil {
+		return db.User{}, errors.New("unknown api key user")
 	}
 
 	return user, nil

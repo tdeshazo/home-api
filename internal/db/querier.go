@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	AvailableTasks(ctx context.Context, arg AvailableTasksParams) ([]Task, error)
+	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (CreateAPIKeyRow, error)
 	CreatePost(ctx context.Context, arg CreatePostParams) (Post, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateTask(ctx context.Context, title string) (Task, error)
@@ -28,6 +29,7 @@ type Querier interface {
 	ListPostsByUser(ctx context.Context, arg ListPostsByUserParams) ([]Post, error)
 	ListTasks(ctx context.Context) ([]Task, error)
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
+	TouchAPIKey(ctx context.Context, keyHash string) (uuid.UUID, error)
 	UpdatePostForUser(ctx context.Context, arg UpdatePostForUserParams) (Post, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 }

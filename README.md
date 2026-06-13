@@ -7,6 +7,7 @@ It includes:
 - Go `net/http` routing
 - structured JSON logging and request middleware
 - local email/password auth endpoints with JWT access tokens and refresh tokens
+- API key issuance and API key authentication for protected routes
 - configurable dev/JWT auth middleware
 - user-owned post authorization
 - Postgres migrations and seed data
@@ -29,6 +30,7 @@ It includes:
 │   │   ├── 000003_create_api_keys_refresh_tokens.up.sql
 │   │   └── 000003_create_api_keys_refresh_tokens.down.sql
 │   ├── queries
+│   │   ├── api_keys.sql
 │   │   ├── posts.sql
 │   │   ├── refresh_tokens.sql
 │   │   ├── tasks.sql
@@ -36,6 +38,7 @@ It includes:
 │   └── seed.sql
 ├── internal
 │   ├── api
+│   │   ├── api_key_handlers.go
 │   │   ├── auth.go
 │   │   ├── auth_handlers.go
 │   │   ├── auth_service.go
@@ -48,6 +51,7 @@ It includes:
 │   │   ├── post_handlers.go
 │   │   └── server.go
 │   └── db
+│       ├── api_keys.sql.go
 │       ├── db.go
 │       ├── models.go
 │       ├── posts.sql.go
@@ -179,6 +183,23 @@ Refresh and logout both accept:
 
 ```json
 {"refresh_token":"paste-refresh-token-here"}
+```
+
+### API keys
+
+Authenticated users can issue API keys:
+
+```bash
+curl -X POST http://localhost:8080/api-keys \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"CLI"}'
+```
+
+The raw key is returned only once in the `key` field. Use it on protected routes with:
+
+```text
+Authorization: ApiKey <key>
 ```
 
 Generate a local test JWT:
