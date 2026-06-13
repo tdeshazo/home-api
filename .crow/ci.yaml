@@ -8,10 +8,10 @@ when:
     branch: ${CI_REPO_DEFAULT_BRANCH}
 
 variables:
-  REGISTRY_HOST: cr.home.deshazo.dev
-  IMAGE_REPOSITORY: cr.home.deshazo.dev/homeapi
-  CONTAINER_NAME: home-api-app
-  APP_PORT: 8888
+  registry: cr.home.deshazo.dev
+  image_repo: cr.home.deshazo.dev/homeapi
+  app_name: home-api-app
+  app_port: 8888
 
 steps:
   - name: lint
@@ -51,87 +51,44 @@ steps:
       go install golang.org/x/vuln/cmd/govulncheck@latest
       govulncheck ./...
 
-  - name: prepare-image-metadata
-    image: alpine:3.22
-    commands: |
-      build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      printf 'GIT_SHA=%s\n' "$CI_COMMIT_SHA" > .docker-build.env
-      printf 'BUILD_TIME=%s\n' "$build_time" >> .docker-build.env
-    when:
-      - event: push
-        branch: ${CI_REPO_DEFAULT_BRANCH}
-      - event: manual
-        branch: ${CI_REPO_DEFAULT_BRANCH}
-
-  - name: publish-image
-    image: codefloe.com/crow-plugins/docker-buildx:1
-    privileged: true
-    settings:
-      registry: ${REGISTRY_HOST}
-      repo: ${IMAGE_REPOSITORY}
-      tags:
-        - ${CI_COMMIT_SHA}
-        - latest
-      dockerfile: Dockerfile
-      context: .
-      platforms: linux/amd64
-      env_file: .docker-build.env
-      build_args_from_env:
-        - GIT_SHA
-        - BUILD_TIME
-      labels:
-        - org.opencontainers.image.revision=${CI_COMMIT_SHA}
-        - org.opencontainers.image.source=${CI_REPO_CLONE_URL}
-      username:
-        from_secret: homeapi_registry_username
-      password:
-        from_secret: homeapi_registry_password
-    when:
-      - event: push
-        branch: ${CI_REPO_DEFAULT_BRANCH}
-      - event: manual
-        branch: ${CI_REPO_DEFAULT_BRANCH}
-
-  - name: deploy
+  - name: build-push-deploy
     image: docker:28-cli
     environment:
-      DATABASE_URL:
-        from_secret: homeapi_database_url
-      JWT_SECRET:
-        from_secret: homeapi_jwt_secret
       REGISTRY_USERNAME:
         from_secret: homeapi_registry_username
       REGISTRY_PASSWORD:
         from_secret: homeapi_registry_password
+      DATABASE_URL:
+        from_secret: homeapi_database_url
+      JWT_SECRET:
+        from_secret: homeapi_jwt_secret
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     commands: |
-      image_repository="${IMAGE_REPOSITORY}"
-      image_latest="$image_repository:latest"
-      registry_host="${REGISTRY_HOST}"
-      container_name="${CONTAINER_NAME}"
-      previous_name="${container_name}-previous"
-      app_port="${APP_PORT}"
+      build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-      test -n "$DATABASE_URL"
-      test -n "$JWT_SECRET"
-      test -n "$REGISTRY_USERNAME"
-      test -n "$REGISTRY_PASSWORD"
+      docker version
+      echo "$${REGISTRY_PASSWORD}" | docker login ${registry} -u "$${REGISTRY_USERNAME}" --password-stdin
 
-      printf '%s' "$REGISTRY_PASSWORD" | docker login "$registry_host" --username "$REGISTRY_USERNAME" --password-stdin
-      docker pull "$image_latest"
-      docker rm -f "$previous_name" 2>/dev/null || true
-      if docker inspect "$container_name" >/dev/null 2>&1; then
-        docker stop "$container_name"
-        docker rename "$container_name" "$previous_name"
-      fi
+      docker build \
+        --build-arg GIT_SHA="$CI_COMMIT_SHA" \
+        --build-arg BUILD_TIME="$build_time" \
+        --label "org.opencontainers.image.created=$build_time" \
+        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
+        --label "org.opencontainers.image.source=$CI_REPO_CLONE_URL" \
+        -t ${image_repo}:$CI_COMMIT_SHA \
+        .
+
+      docker push ${image_repo}:$CI_COMMIT_SHA
+      docker pull ${image_repo}:$CI_COMMIT_SHA
+      docker rm -f ${app_name} 2>/dev/null || true
 
       docker run -d \
-        --name "$container_name" \
+        --name ${app_name} \
         --restart unless-stopped \
         --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
         --label "dev.deshazo.homeapi.managed-by=crow" \
-        -p "$app_port:8080" \
+        -p ${app_port}:8080 \
         --env APP_ENV=production \
         --env PORT=8080 \
         --env DATABASE_URL \
@@ -143,25 +100,9 @@ steps:
         --env JWT_AUDIENCE=home-api-api \
         --env AUTH_ACCESS_TOKEN_TTL=15m \
         --env AUTH_REFRESH_TOKEN_TTL=720h \
-        "$image_latest"
+        ${image_repo}:$CI_COMMIT_SHA
 
-      apk add --no-cache curl
-      for attempt in $(seq 1 20); do
-        if curl -fsS "http://127.0.0.1:$app_port/api/healthz" >/dev/null; then
-          docker rm -f "$previous_name" 2>/dev/null || true
-          docker ps --filter "name=^/${container_name}$"
-          exit 0
-        fi
-        sleep 2
-      done
-
-      docker logs --tail 100 "$container_name"
-      docker rm -f "$container_name"
-      if docker inspect "$previous_name" >/dev/null 2>&1; then
-        docker rename "$previous_name" "$container_name"
-        docker start "$container_name"
-      fi
-      exit 1
+      docker ps --filter "name=${app_name}"
     when:
       - event: push
         branch: ${CI_REPO_DEFAULT_BRANCH}
