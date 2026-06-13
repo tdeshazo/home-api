@@ -30,9 +30,12 @@ It includes:
 ├── internal
 │   ├── api
 │   │   ├── context.go
-│   │   ├── handlers.go
+│   │   ├── handler_helpers.go
+│   │   ├── health_handlers.go
+│   │   ├── me_handlers.go
 │   │   ├── json.go
 │   │   ├── middleware.go
+│   │   ├── post_handlers.go
 │   │   └── server.go
 │   └── db
 │       ├── db.go
