@@ -8,7 +8,8 @@ when:
     branch: ${CI_REPO_DEFAULT_BRANCH}
 
 variables:
-  IMAGE_REPOSITORY: cr.home.deshazo.dev
+  REGISTRY_HOST: cr.home.deshazo.dev
+  IMAGE_REPOSITORY: cr.home.deshazo.dev/homeapi
   CONTAINER_NAME: home-api-app
   APP_PORT: 8888
 
@@ -49,42 +50,41 @@ steps:
       go install golang.org/x/vuln/cmd/govulncheck@latest
       govulncheck ./...
 
-  - name: docker-build
-    image: docker:28-cli
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+  - name: prepare-image-metadata
+    image: alpine:3.22
     commands: |
-      image_repository="${IMAGE_REPOSITORY}"
-      image_commit="$image_repository:$CI_COMMIT_SHA"
-      image_latest="$image_repository:latest"
       build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-      docker build \
-        --build-arg GIT_SHA="$CI_COMMIT_SHA" \
-        --build-arg BUILD_TIME="$build_time" \
-        --label "org.opencontainers.image.created=$build_time" \
-        --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
-        --label "org.opencontainers.image.source=$CI_REPO_CLONE_URL" \
-        -t "$image_commit" \
-        -t "$image_latest" \
-        .
+      printf 'GIT_SHA=%s\n' "$CI_COMMIT_SHA" > .docker-build.env
+      printf 'BUILD_TIME=%s\n' "$build_time" >> .docker-build.env
     when:
       - event: push
         branch: ${CI_REPO_DEFAULT_BRANCH}
       - event: manual
         branch: ${CI_REPO_DEFAULT_BRANCH}
 
-  - name: docker-push
-    image: docker:28-cli
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    commands: |
-      image_repository="${IMAGE_REPOSITORY}"
-      image_commit="$image_repository:$CI_COMMIT_SHA"
-      image_latest="$image_repository:latest"
-
-      docker push "$image_commit"
-      docker push "$image_latest"
+  - name: publish-image
+    image: codefloe.com/crow-plugins/docker-buildx:1
+    privileged: true
+    settings:
+      registry: ${REGISTRY_HOST}
+      repo: ${IMAGE_REPOSITORY}
+      tags:
+        - ${CI_COMMIT_SHA}
+        - latest
+      dockerfile: Dockerfile
+      context: .
+      platforms: linux/amd64
+      env_file: .docker-build.env
+      build_args_from_env:
+        - GIT_SHA
+        - BUILD_TIME
+      labels:
+        - org.opencontainers.image.revision=${CI_COMMIT_SHA}
+        - org.opencontainers.image.source=${CI_REPO_CLONE_URL}
+      username:
+        from_secret: homeapi_registry_username
+      password:
+        from_secret: homeapi_registry_password
     when:
       - event: push
         branch: ${CI_REPO_DEFAULT_BRANCH}
@@ -98,18 +98,26 @@ steps:
         from_secret: homeapi_database_url
       JWT_SECRET:
         from_secret: homeapi_jwt_secret
+      REGISTRY_USERNAME:
+        from_secret: homeapi_registry_username
+      REGISTRY_PASSWORD:
+        from_secret: homeapi_registry_password
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     commands: |
       image_repository="${IMAGE_REPOSITORY}"
       image_latest="$image_repository:latest"
+      registry_host="${REGISTRY_HOST}"
       container_name="${CONTAINER_NAME}"
       previous_name="${container_name}-previous"
       app_port="${APP_PORT}"
 
       test -n "$DATABASE_URL"
       test -n "$JWT_SECRET"
+      test -n "$REGISTRY_USERNAME"
+      test -n "$REGISTRY_PASSWORD"
 
+      printf '%s' "$REGISTRY_PASSWORD" | docker login "$registry_host" --username "$REGISTRY_USERNAME" --password-stdin
       docker pull "$image_latest"
       docker rm -f "$previous_name" 2>/dev/null || true
       if docker inspect "$container_name" >/dev/null 2>&1; then
