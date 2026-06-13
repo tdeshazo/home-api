@@ -14,7 +14,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, handle, display_name, password_hash)
 VALUES ($1, $2, $3, $4)
-RETURNING id, email, handle, display_name, password_hash, created_at, updated_at
+RETURNING id, email, handle, display_name, password_hash, points, is_admin, created_at, updated_at
 `
 
 type CreateUserParams struct {
@@ -38,6 +38,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Handle,
 		&i.DisplayName,
 		&i.PasswordHash,
+		&i.Points,
+		&i.IsAdmin,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -45,7 +47,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, email, handle, display_name, password_hash, created_at, updated_at
+SELECT id, email, handle, display_name, password_hash, points, is_admin, created_at, updated_at
 FROM users
 WHERE id = $1
 `
@@ -59,6 +61,8 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Handle,
 		&i.DisplayName,
 		&i.PasswordHash,
+		&i.Points,
+		&i.IsAdmin,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -66,7 +70,7 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, handle, display_name, password_hash, created_at, updated_at
+SELECT id, email, handle, display_name, password_hash, points, is_admin, created_at, updated_at
 FROM users
 WHERE email = $1
 `
@@ -80,6 +84,37 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Handle,
 		&i.DisplayName,
 		&i.PasswordHash,
+		&i.Points,
+		&i.IsAdmin,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateUserPoints = `-- name: UpdateUserPoints :one
+UPDATE users
+SET points = $2
+WHERE id = $1
+RETURNING id, email, handle, display_name, password_hash, points, is_admin, created_at, updated_at
+`
+
+type UpdateUserPointsParams struct {
+	ID     uuid.UUID `json:"id"`
+	Points int32     `json:"points"`
+}
+
+func (q *Queries) UpdateUserPoints(ctx context.Context, arg UpdateUserPointsParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserPoints, arg.ID, arg.Points)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Handle,
+		&i.DisplayName,
+		&i.PasswordHash,
+		&i.Points,
+		&i.IsAdmin,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

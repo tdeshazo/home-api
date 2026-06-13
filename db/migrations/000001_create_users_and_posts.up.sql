@@ -15,6 +15,8 @@ CREATE TABLE users (
   handle TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
   password_hash TEXT NOT NULL,
+  points INTEGER NOT NULL DEFAULT 0 CHECK (points >= 0),
+  is_admin BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

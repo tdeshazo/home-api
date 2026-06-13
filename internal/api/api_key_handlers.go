@@ -17,10 +17,6 @@ import (
 
 const maxAPIKeyIssueAttempts = 3
 
-type createAPIKeyRequest struct {
-	Name string `json:"name"`
-}
-
 type apiKeyResponse struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
@@ -44,7 +40,9 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input createAPIKeyRequest
+	var input struct {
+		Name string `json:"name"`
+	}
 	if err := decodeJSON(r, &input); err != nil {
 		SetLogError(r.Context(), err)
 		writeError(w, http.StatusBadRequest, "invalid JSON body")
@@ -52,7 +50,7 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	input.Name = strings.TrimSpace(input.Name)
-	if err := validateCreateAPIKeyRequest(input); err != nil {
+	if err := validateCreateAPIKeyName(input.Name); err != nil {
 		SetLogError(r.Context(), err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -68,11 +66,11 @@ func (s *Server) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, response)
 }
 
-func validateCreateAPIKeyRequest(input createAPIKeyRequest) error {
-	if input.Name == "" {
+func validateCreateAPIKeyName(name string) error {
+	if name == "" {
 		return errors.New("name is required")
 	}
-	if len(input.Name) > 100 {
+	if len(name) > 100 {
 		return errors.New("name must be 100 characters or fewer")
 	}
 	return nil

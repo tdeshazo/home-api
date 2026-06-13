@@ -32,6 +32,7 @@ type Querier interface {
 	TouchAPIKey(ctx context.Context, keyHash string) (uuid.UUID, error)
 	UpdatePostForUser(ctx context.Context, arg UpdatePostForUserParams) (Post, error)
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
+	UpdateUserPoints(ctx context.Context, arg UpdateUserPointsParams) (User, error)
 }
 
 var _ Querier = (*Queries)(nil)

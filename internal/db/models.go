@@ -70,6 +70,8 @@ type User struct {
 	Handle       string    `json:"handle"`
 	DisplayName  string    `json:"display_name"`
 	PasswordHash string    `json:"password_hash"`
+	Points       int32     `json:"points"`
+	IsAdmin      bool      `json:"is_admin"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
