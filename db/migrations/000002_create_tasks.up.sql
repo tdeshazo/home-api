@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS tasks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title text NOT NULL,
-    frequency_kind text NOT NULL DEFAULT 'once',
+    frequency_type text NOT NULL DEFAULT 'once',
     days_of_week smallint[] NOT NULL DEFAULT '{}',
     point_value int NOT NULL DEFAULT 0,
     individual boolean NOT NULL DEFAULT false,
