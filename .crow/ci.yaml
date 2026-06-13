@@ -41,8 +41,9 @@ steps:
 
   - name: race
     image: golang:1.26.4-alpine
-    commands:
-      - go test -race -shuffle=on ./...
+    commands: |
+      apk add --no-cache build-base
+      CGO_ENABLED=1 go test -race -shuffle=on ./...
 
   - name: security
     image: golang:1.26.4-alpine
