@@ -4,6 +4,8 @@ when:
   - event: pull_request
   - event: push
     branch: ${CI_REPO_DEFAULT_BRANCH}
+  - event: manual
+    branch: ${CI_REPO_DEFAULT_BRANCH}
 
 variables:
   IMAGE_REPOSITORY: cr.home.deshazo.dev/homeapi
@@ -69,6 +71,8 @@ steps:
     when:
       - event: push
         branch: ${CI_REPO_DEFAULT_BRANCH}
+      - event: manual
+        branch: ${CI_REPO_DEFAULT_BRANCH}
 
   - name: docker-push
     image: docker:28-cli
@@ -83,6 +87,8 @@ steps:
       docker push "$image_latest"
     when:
       - event: push
+        branch: ${CI_REPO_DEFAULT_BRANCH}
+      - event: manual
         branch: ${CI_REPO_DEFAULT_BRANCH}
 
   - name: deploy
@@ -149,4 +155,6 @@ steps:
       exit 1
     when:
       - event: push
+        branch: ${CI_REPO_DEFAULT_BRANCH}
+      - event: manual
         branch: ${CI_REPO_DEFAULT_BRANCH}
