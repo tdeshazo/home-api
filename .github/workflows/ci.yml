@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths:
+      - ".github/workflows/ci.yml"
+      - "app/**"
       - "cmd/**"
       - "internal/**"
       - "go.mod"
@@ -11,6 +13,8 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - ".github/workflows/ci.yml"
+      - "app/**"
       - "cmd/**"
       - "internal/**"
       - "go.mod"
@@ -30,14 +34,24 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
       - name: Verify formatting
         run: |
-          files="$(gofmt -l ./cmd ./internal)"
+          files="$(gofmt -l ./app ./cmd ./internal)"
           if [ -n "$files" ]; then
             echo "The following files need gofmt:"
             echo "$files"
             exit 1
           fi
+
+      - name: Validate frontend static references
+        run: go test ./app
+
+      - name: Check frontend JavaScript syntax
+        run: find app/assets -name '*.js' -print0 | xargs -0 -r -n1 node --check
 
       - name: Verify modules are tidy
         run: |
