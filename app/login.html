@@ -5,19 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Login | Home API</title>
     <link rel="icon" href="/assets/mark.svg" />
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem("home-api-theme");
+          document.documentElement.dataset.theme = saved === "dark" || saved === "light"
+            ? saved
+            : window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="/assets/app.css" />
   </head>
   <body>
     <div class="app-shell">
       <header class="mobile-header">
-        <button class="icon-action" type="button" data-drawer-open aria-controls="mobileDrawer" aria-expanded="false" aria-label="Open navigation">☰</button>
+        <button class="icon-action" type="button" data-drawer-open aria-controls="mobileDrawer" aria-expanded="false" aria-label="Open navigation"><span data-icon="menu"></span></button>
         <a class="brand" href="/posts" aria-label="Home API">
           <img src="/assets/mark.svg" alt="" />
           <span>Home API</span>
         </a>
-        <button class="icon-action" type="button" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode">
-          <span data-theme-icon>◐</span>
-        </button>
       </header>
 
       <div class="drawer-backdrop" data-drawer-backdrop hidden></div>
@@ -27,7 +36,7 @@
             <img src="/assets/mark.svg" alt="" />
             <span>Home API</span>
           </a>
-          <button class="icon-action" type="button" data-drawer-close aria-label="Close navigation">×</button>
+          <button class="icon-action" type="button" data-drawer-close aria-label="Close navigation"><span data-icon="close"></span></button>
         </div>
         <div class="nav-profile" data-nav-profile hidden>
           <div class="avatar" data-nav-avatar></div>
@@ -42,7 +51,7 @@
           <a href="/tasks/dashboard">Dashboard</a>
         </nav>
         <div class="nav-footer">
-          <button class="secondary-action" type="button" data-theme-toggle><span data-theme-icon>◐</span></button>
+          <button class="icon-action" type="button" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode"><span data-theme-icon></span></button>
           <button class="secondary-action session-action is-hidden" type="button" data-logout-button>Logout</button>
         </div>
       </aside>
@@ -65,7 +74,7 @@
           <a href="/tasks/dashboard">Dashboard</a>
         </div>
         <div class="nav-footer">
-          <button class="secondary-action" type="button" data-theme-toggle><span data-theme-icon>◐</span></button>
+          <button class="icon-action" type="button" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode"><span data-theme-icon></span></button>
           <button class="secondary-action session-action is-hidden" type="button" data-logout-button>Logout</button>
         </div>
       </nav>
@@ -73,7 +82,10 @@
       <main class="login-shell">
         <section class="auth-panel login-panel" aria-labelledby="authTitle">
           <div class="panel-head">
-            <h1 id="authTitle">Account</h1>
+            <div>
+              <h1 id="authTitle">Account</h1>
+              <p class="panel-kicker">Use your Home API account to post and complete assigned tasks.</p>
+            </div>
             <div class="mode-tabs" role="tablist" aria-label="Authentication mode">
               <button class="tab is-active" type="button" data-auth-tab="login">Login</button>
               <button class="tab" type="button" data-auth-tab="register">Register</button>
@@ -114,6 +126,10 @@
           </form>
 
           <div class="dev-auth is-hidden" data-auth-view="dev">
+            <div class="dev-note">
+              <strong>Development login</strong>
+              <span>Select a seeded user or paste a UUID. This shortcut is intended for local development only.</span>
+            </div>
             <div class="dev-grid">
               <button type="button" class="secondary-action" data-dev-user="00000000-0000-0000-0000-000000000001">Alice</button>
               <button type="button" class="secondary-action" data-dev-user="00000000-0000-0000-0000-000000000002">Bob</button>

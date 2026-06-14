@@ -54,6 +54,12 @@ func TestFrontendRoutes(t *testing.T) {
 			body:        "const state =",
 		},
 		{
+			name:        "shared asset",
+			path:        "/assets/shared.js",
+			contentType: "text/javascript",
+			body:        "export async function apiFetch",
+		},
+		{
 			name:        "tasks asset",
 			path:        "/assets/tasks.js",
 			contentType: "text/javascript",

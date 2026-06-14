@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tasks | Home API</title>
+    <link rel="icon" href="/assets/mark.svg" />
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem("home-api-theme");
+          document.documentElement.dataset.theme = saved === "dark" || saved === "light"
+            ? saved
+            : window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="/assets/app.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="mobile-header">
+        <button class="icon-action" type="button" data-drawer-open aria-controls="mobileDrawer" aria-expanded="false" aria-label="Open navigation"><span data-icon="menu"></span></button>
+        <a class="brand" href="/posts" aria-label="Home API">
+          <img src="/assets/mark.svg" alt="" />
+          <span>Home API</span>
+        </a>
+      </header>
+
+      <div class="drawer-backdrop" data-drawer-backdrop hidden></div>
+      <aside class="mobile-drawer" id="mobileDrawer" aria-label="Primary navigation" aria-hidden="true">
+        <div class="drawer-head">
+          <a class="brand" href="/posts" aria-label="Home API">
+            <img src="/assets/mark.svg" alt="" />
+            <span>Home API</span>
+          </a>
+          <button class="icon-action" type="button" data-drawer-close aria-label="Close navigation"><span data-icon="close"></span></button>
+        </div>
+        <div class="nav-profile" data-nav-profile hidden>
+          <div class="avatar" data-nav-avatar></div>
+          <div>
+            <strong data-nav-name></strong>
+            <span class="session" data-session-summary></span>
+          </div>
+        </div>
+        <a class="secondary-action session-action" data-login-link href="/login">Login</a>
+        <nav class="nav-menu" aria-label="Primary">
+          <a href="/posts">Posts</a>
+          <a href="/tasks" aria-current="page">Tasks</a>
+          <a href="/tasks/dashboard">Dashboard</a>
+        </nav>
+        <div class="nav-footer">
+          <button class="icon-action" type="button" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode"><span data-theme-icon></span></button>
+          <button class="secondary-action session-action is-hidden" type="button" data-logout-button>Logout</button>
+        </div>
+      </aside>
+
+      <nav class="side-rail" aria-label="Primary">
+        <a class="brand" href="/posts" aria-label="Home API">
+          <img src="/assets/mark.svg" alt="" />
+          <span>Home API</span>
+        </a>
+        <div class="nav-profile" data-nav-profile hidden>
+          <div class="avatar" data-nav-avatar></div>
+          <div>
+            <strong data-nav-name></strong>
+            <span class="session" data-session-summary></span>
+          </div>
+        </div>
+        <a class="secondary-action session-action" data-login-link href="/login">Login</a>
+        <div class="nav-menu">
+          <a href="/posts">Posts</a>
+          <a href="/tasks" aria-current="page">Tasks</a>
+          <a href="/tasks/dashboard">Dashboard</a>
+        </div>
+        <div class="nav-footer">
+          <button class="icon-action" type="button" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode"><span data-theme-icon></span></button>
+          <button class="secondary-action session-action is-hidden" type="button" data-logout-button>Logout</button>
+        </div>
+      </nav>
+
+      <main class="workspace">
+        <section class="timeline-panel" aria-labelledby="tasksTitle">
+          <div class="panel-head timeline-head">
+            <div>
+              <h2 id="tasksTitle">Tasks</h2>
+              <p id="tasksMeta"></p>
+            </div>
+            <button class="secondary-action icon-label-action" type="button" id="refreshTasks"><span data-icon="refresh"></span><span>Refresh</span></button>
+          </div>
+          <p class="status-line" id="authStatus" role="status"></p>
+
+          <details class="composer-shell" id="taskComposerShell" open>
+            <summary>
+              <span>Add recurring task</span>
+              <small>Title, cadence, points, and assignment</small>
+            </summary>
+            <form class="composer task-composer" id="taskForm">
+              <label>
+                New task
+                <input name="title" type="text" maxlength="200" required />
+              </label>
+              <div class="task-settings-grid">
+                <fieldset class="segmented-field">
+                  <legend>Frequency</legend>
+                  <label><input type="radio" name="frequency_kind" value="daily" checked /> <span>Daily</span></label>
+                  <label><input type="radio" name="frequency_kind" value="weekly" /> <span>Weekly</span></label>
+                </fieldset>
+                <label>
+                  Points
+                  <input name="point_value" type="number" min="0" step="1" value="0" required />
+                </label>
+              </div>
+              <fieldset class="choice-group day-chip-group is-hidden" id="weeklyDays">
+                <legend>Days</legend>
+                <label class="check-option"><input type="checkbox" name="days_of_week" value="1" /> <span>Mon</span></label>
+                <label class="check-option"><input type="checkbox" name="days_of_week" value="2" /> <span>Tue</span></label>
+                <label class="check-option"><input type="checkbox" name="days_of_week" value="3" /> <span>Wed</span></label>
+                <label class="check-option"><input type="checkbox" name="days_of_week" value="4" /> <span>Thu</span></label>
+                <label class="check-option"><input type="checkbox" name="days_of_week" value="5" /> <span>Fri</span></label>
+                <label class="check-option"><input type="checkbox" name="days_of_week" value="6" /> <span>Sat</span></label>
+                <label class="check-option"><input type="checkbox" name="days_of_week" value="7" /> <span>Sun</span></label>
+              </fieldset>
+              <fieldset class="choice-group assignee-chip-group">
+                <legend>Assignees</legend>
+                <div class="assignee-grid" id="assignees"></div>
+              </fieldset>
+              <div class="toggle-row">
+                <label class="check-option"><input type="checkbox" name="is_active" checked /> <span>Active</span></label>
+                <label class="check-option"><input type="checkbox" name="individual" /> <span>Individual scoring</span></label>
+              </div>
+              <div class="composer-actions">
+                <span id="taskCounter">0/200</span>
+                <button class="primary-action" type="submit">Add task</button>
+              </div>
+            </form>
+          </details>
+
+          <div class="tasks-list" id="tasksList" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/assets/tasks.js" type="module"></script>
+  </body>
+</html>

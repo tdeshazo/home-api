@@ -1,3 +1,18 @@
+import {
+  apiFetch,
+  bindDrawer,
+  bindTheme,
+  escapeHTML,
+  hydrateIcons,
+  icon,
+  isAuthError,
+  readSession,
+  readTheme,
+  renderSessionChrome,
+  setStatus,
+  writeSession,
+} from "./shared.js";
+
 const state = {
   limit: 20,
   offset: 0,
@@ -33,6 +48,7 @@ const els = {
   drawerOpen: document.querySelector("[data-drawer-open]"),
   drawerClose: document.querySelector("[data-drawer-close]"),
   drawerBackdrop: document.querySelector("[data-drawer-backdrop]"),
+  postSignInPrompt: document.querySelector("#postSignInPrompt"),
   postForm: document.querySelector("#postForm"),
   postBody: document.querySelector("#postForm textarea"),
   postCounter: document.querySelector("#postCounter"),
@@ -43,6 +59,7 @@ const els = {
 init();
 
 function init() {
+  hydrateIcons();
   document.querySelectorAll("[data-emoji-popover]").forEach((popover) => {
     popover.innerHTML = renderEmojiPalette();
   });
@@ -53,51 +70,19 @@ function init() {
   els.postsList.addEventListener("click", handleTimelineClick);
   els.postsList.addEventListener("input", handleTimelineInput);
   els.postsList.addEventListener("submit", handleReplySubmit);
-  els.themeToggles.forEach((button) => button.addEventListener("click", toggleTheme));
-  els.drawerOpen?.addEventListener("click", openDrawer);
-  els.drawerClose?.addEventListener("click", closeDrawer);
-  els.drawerBackdrop?.addEventListener("click", closeDrawer);
+  bindTheme(state, els);
+  const drawer = bindDrawer(els);
   els.refreshPosts.addEventListener("click", () => loadPosts({ reset: true }));
   window.addEventListener("scroll", maybeLoadMorePosts, { passive: true });
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeDrawer();
+    if (event.key === "Escape") drawer.close();
   });
   document.addEventListener("click", closeEmojiPopovers);
 
-  renderTheme();
   updatePostCounter();
   renderSession();
   loadPosts({ reset: true });
   hydrateCurrentUser(false);
-}
-
-function toggleTheme() {
-  state.theme = state.theme === "dark" ? "light" : "dark";
-  writeTheme(state.theme);
-  renderTheme();
-}
-
-function renderTheme() {
-  document.documentElement.dataset.theme = state.theme;
-  els.themeIcons.forEach((icon) => {
-    icon.textContent = state.theme === "dark" ? "☀" : "◐";
-  });
-}
-
-function openDrawer() {
-  els.drawer?.classList.add("is-open");
-  els.drawer?.setAttribute("aria-hidden", "false");
-  if (els.drawerBackdrop) els.drawerBackdrop.hidden = false;
-  els.drawerOpen?.setAttribute("aria-expanded", "true");
-  document.body.classList.add("drawer-open");
-}
-
-function closeDrawer() {
-  els.drawer?.classList.remove("is-open");
-  els.drawer?.setAttribute("aria-hidden", "true");
-  if (els.drawerBackdrop) els.drawerBackdrop.hidden = true;
-  els.drawerOpen?.setAttribute("aria-expanded", "false");
-  document.body.classList.remove("drawer-open");
 }
 
 async function handleLogout() {
@@ -108,11 +93,12 @@ async function handleLogout() {
   }
   state.session = null;
   writeSession(null);
-  setAuthStatus("Logged out.");
+  setAuthStatus("Logged out.", "success");
   renderSession();
 }
 
 async function hydrateCurrentUser(showError = true) {
+  if (!state.session?.user) return;
   try {
     const user = await apiFetch("/api/me", { auth: true });
     state.session = { user };
@@ -124,7 +110,7 @@ async function hydrateCurrentUser(showError = true) {
       writeSession(null);
       renderSession();
     }
-    if (showError) setAuthStatus(error.message);
+    if (showError) setAuthStatus(error.message, "error");
   }
 }
 
@@ -149,7 +135,7 @@ async function handleCreatePost(event) {
   const body = els.postBody.value.trim();
   if (!body) return;
   if (!state.session?.user) {
-    setAuthStatus("Login required.");
+    setAuthStatus("Login required to post.", "error");
     return;
   }
 
@@ -163,8 +149,9 @@ async function handleCreatePost(event) {
     els.postForm.reset();
     updatePostCounter();
     await loadPosts({ reset: true });
+    setAuthStatus("Posted to the timeline.", "success");
   } catch (error) {
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   } finally {
     els.postForm.querySelector("button").disabled = false;
   }
@@ -179,7 +166,7 @@ async function loadPosts({ reset = false } = {}) {
     state.posts = [];
     state.replies = {};
     state.hasMore = true;
-    els.postsList.innerHTML = `<div class="empty-state">Loading...</div>`;
+    els.postsList.innerHTML = `<div class="loading-state" aria-label="Loading timeline"></div>`;
   }
 
   state.loadingPosts = true;
@@ -201,7 +188,7 @@ async function loadPosts({ reset = false } = {}) {
     if (reset || state.posts.length === 0) {
       els.postsList.innerHTML = `<div class="error-state">${escapeHTML(error.message)}</div>`;
     } else {
-      setAuthStatus(error.message);
+      setAuthStatus(error.message, "error");
     }
   } finally {
     state.loadingPosts = false;
@@ -221,46 +208,20 @@ function maybeLoadMorePosts() {
 
 function renderSession() {
   const user = state.session?.user;
-  const loggedIn = Boolean(user);
-  els.loginLinks.forEach((link) => {
-    link.href = `/login?return_to=${encodeURIComponent(window.location.pathname)}`;
-    link.classList.toggle("is-hidden", loggedIn);
-  });
-  els.logoutButtons.forEach((button) => button.classList.toggle("is-hidden", !loggedIn));
-  els.navProfiles.forEach((profile) => {
-    profile.hidden = !loggedIn;
-  });
+  const loggedIn = renderSessionChrome(els, user);
   els.postForm.classList.toggle("is-hidden", !loggedIn);
-  els.sessionSummaries.forEach((summary) => {
-    summary.textContent = loggedIn ? `@${user.handle} · ${user.points ?? 0} pts` : "Signed out";
-  });
-  els.navNames.forEach((name) => {
-    name.textContent = loggedIn ? user.display_name || user.handle : "";
-  });
-  els.navAvatars.forEach((avatar) => {
-    avatar.textContent = loggedIn ? userInitials(user) : "";
-  });
+  els.postSignInPrompt.hidden = loggedIn;
   els.timelineMeta.textContent = loggedIn
-    ? "Top-level posts"
-    : "Top-level posts";
+    ? "Post and reply from your household timeline"
+    : "Read-only until you login";
   renderPosts();
-}
-
-function userInitials(user) {
-  const source = user.display_name || user.handle || "?";
-  return source
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
 }
 
 function renderPosts() {
   if (state.loadingPosts && state.posts.length === 0) {
-    els.postsList.innerHTML = `<div class="empty-state">Loading...</div>`;
+    els.postsList.innerHTML = `<div class="loading-state" aria-label="Loading timeline"></div>`;
   } else if (state.posts.length === 0) {
-    els.postsList.innerHTML = `<div class="empty-state">No posts found.</div>`;
+    els.postsList.innerHTML = `<div class="empty-state">${state.session?.user ? "No posts yet. Start the first thread." : "No posts yet. Login to add the first update."}</div>`;
   } else {
     els.postsList.innerHTML = state.posts.map((post) => renderPost(post)).join("");
   }
@@ -268,12 +229,15 @@ function renderPosts() {
 }
 
 function renderScrollStatus() {
+  els.scrollStatus.classList.remove("is-loading", "is-end");
   if (state.loadingPosts && state.posts.length > 0) {
-    els.scrollStatus.textContent = "Loading more posts...";
+    els.scrollStatus.classList.add("is-loading");
+    els.scrollStatus.textContent = "Loading more posts";
     return;
   }
   if (!state.hasMore && state.posts.length > 0) {
-    els.scrollStatus.textContent = "End of timeline.";
+    els.scrollStatus.classList.add("is-end");
+    els.scrollStatus.textContent = "End of timeline";
     return;
   }
   els.scrollStatus.textContent = "";
@@ -318,13 +282,13 @@ function renderPost(post, depth = 0) {
 function renderReplies(postID, depth) {
   const replies = replyState(postID);
   if (replies.loading) {
-    return `<div class="reply-list"><div class="reply-note">Loading...</div></div>`;
+    return `<div class="reply-list"><div class="reply-note">Loading replies...</div></div>`;
   }
   if (replies.error) {
     return `<div class="reply-list"><div class="reply-note error">${escapeHTML(replies.error)}</div></div>`;
   }
   if (!replies.items.length) {
-    return `<div class="reply-list"><div class="reply-note">No replies yet.</div></div>`;
+    return `<div class="reply-list"><div class="reply-note">No replies yet. Keep the thread moving.</div></div>`;
   }
   return `
     <div class="reply-list">
@@ -416,8 +380,9 @@ async function handleReplySubmit(event) {
     replies.formOpen = false;
     replies.hasLoaded = false;
     await loadReplies(postID);
+    setAuthStatus("Reply posted.", "success");
   } catch (error) {
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   } finally {
     button.disabled = false;
   }
@@ -498,7 +463,7 @@ function insertEmoji(textarea, emoji) {
 function renderEmojiControl() {
   return `
     <div class="emoji-control" data-emoji-control>
-      <button class="icon-action" type="button" data-action="toggle-emoji" aria-label="Open emoji selector" aria-expanded="false">🙂</button>
+      <button class="icon-action" type="button" data-action="toggle-emoji" aria-label="Open emoji selector" aria-expanded="false">${icon("smile")}</button>
       <div class="emoji-popover is-hidden" data-emoji-popover>${renderEmojiPalette()}</div>
     </div>
   `;
@@ -534,86 +499,8 @@ function closeEmojiPopovers(event) {
   });
 }
 
-async function apiFetch(path, options = {}) {
-  const headers = new Headers(options.headers ?? {});
-  headers.set("Accept", "application/json");
-  if (options.body) headers.set("Content-Type", "application/json");
-
-  const response = await fetch(apiPath(path), {
-    method: options.method ?? "GET",
-    headers,
-    credentials: "same-origin",
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-
-  if (response.status === 204) return null;
-
-  const contentType = response.headers.get("Content-Type") ?? "";
-  const payload = contentType.includes("application/json") ? await response.json() : null;
-  if (response.status === 401 && options.auth && !options.skipRefresh) {
-    await apiFetch("/api/auth/refresh", { method: "POST", skipRefresh: true });
-    return apiFetch(path, { ...options, skipRefresh: true });
-  }
-  if (!response.ok) {
-    throw new APIError(payload?.error || `Request failed with status ${response.status}`, response.status);
-  }
-  return payload;
-}
-
-class APIError extends Error {
-  constructor(message, status) {
-    super(message);
-    this.name = "APIError";
-    this.status = status;
-  }
-}
-
-function isAuthError(error) {
-  return error instanceof APIError && (error.status === 401 || error.status === 403);
-}
-
-function apiPath(path) {
-  if (path.startsWith("/api/")) return path;
-  return `/api${path}`;
-}
-
-function saveTokenSession(response) {
-  state.session = { user: response.user };
-  writeSession(state.session);
-}
-
-function readSession() {
-  try {
-    const session = JSON.parse(localStorage.getItem("home-api-session"));
-    if (!session?.user) return null;
-    const sanitized = { user: session.user };
-    localStorage.setItem("home-api-session", JSON.stringify(sanitized));
-    return sanitized;
-  } catch {
-    return null;
-  }
-}
-
-function readTheme() {
-  const saved = localStorage.getItem("home-api-theme");
-  if (saved === "dark" || saved === "light") return saved;
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function writeTheme(theme) {
-  localStorage.setItem("home-api-theme", theme);
-}
-
-function writeSession(session) {
-  if (!session) {
-    localStorage.removeItem("home-api-session");
-    return;
-  }
-  localStorage.setItem("home-api-session", JSON.stringify(session));
-}
-
-function setAuthStatus(message) {
-  els.authStatus.textContent = message;
+function setAuthStatus(message, tone = "") {
+  setStatus(els.authStatus, message, tone);
 }
 
 function authorName(post) {
@@ -636,13 +523,4 @@ function formatDate(value) {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
-}
-
-function escapeHTML(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }

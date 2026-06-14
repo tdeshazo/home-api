@@ -1,3 +1,18 @@
+import {
+  apiFetch,
+  bindDrawer,
+  bindTheme,
+  escapeAttribute,
+  escapeHTML,
+  hydrateIcons,
+  isAuthError,
+  readSession,
+  readTheme,
+  renderSessionChrome,
+  setStatus,
+  writeSession,
+} from "./shared.js";
+
 const state = {
   tasks: [],
   dailyTasks: [],
@@ -21,6 +36,7 @@ const els = {
   drawerOpen: document.querySelector("[data-drawer-open]"),
   drawerClose: document.querySelector("[data-drawer-close]"),
   drawerBackdrop: document.querySelector("[data-drawer-backdrop]"),
+  taskComposerShell: document.querySelector("#taskComposerShell"),
   taskForm: document.querySelector("#taskForm"),
   taskTitle: document.querySelector("#taskForm input[name='title']"),
   taskCounter: document.querySelector("#taskCounter"),
@@ -31,21 +47,19 @@ const els = {
 init();
 
 function init() {
+  hydrateIcons();
   els.logoutButtons.forEach((button) => button.addEventListener("click", handleLogout));
-  els.themeToggles.forEach((button) => button.addEventListener("click", toggleTheme));
-  els.drawerOpen?.addEventListener("click", openDrawer);
-  els.drawerClose?.addEventListener("click", closeDrawer);
-  els.drawerBackdrop?.addEventListener("click", closeDrawer);
+  bindTheme(state, els);
+  const drawer = bindDrawer(els);
   els.refreshTasks.addEventListener("click", () => loadTaskView());
   els.taskForm.addEventListener("submit", handleCreateTask);
   els.taskForm.addEventListener("change", handleTaskFormChange);
   els.taskTitle.addEventListener("input", updateTaskCounter);
   els.tasksList.addEventListener("click", handleTaskClick);
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeDrawer();
+    if (event.key === "Escape") drawer.close();
   });
 
-  renderTheme();
   updateTaskCounter();
   renderSession();
   hydrateInitialView();
@@ -54,35 +68,6 @@ function init() {
 async function hydrateInitialView() {
   await hydrateCurrentUser(false);
   await loadTaskView();
-}
-
-function toggleTheme() {
-  state.theme = state.theme === "dark" ? "light" : "dark";
-  writeTheme(state.theme);
-  renderTheme();
-}
-
-function renderTheme() {
-  document.documentElement.dataset.theme = state.theme;
-  els.themeIcons.forEach((icon) => {
-    icon.textContent = state.theme === "dark" ? "☀" : "◐";
-  });
-}
-
-function openDrawer() {
-  els.drawer?.classList.add("is-open");
-  els.drawer?.setAttribute("aria-hidden", "false");
-  if (els.drawerBackdrop) els.drawerBackdrop.hidden = false;
-  els.drawerOpen?.setAttribute("aria-expanded", "true");
-  document.body.classList.add("drawer-open");
-}
-
-function closeDrawer() {
-  els.drawer?.classList.remove("is-open");
-  els.drawer?.setAttribute("aria-hidden", "true");
-  if (els.drawerBackdrop) els.drawerBackdrop.hidden = true;
-  els.drawerOpen?.setAttribute("aria-expanded", "false");
-  document.body.classList.remove("drawer-open");
 }
 
 async function handleLogout() {
@@ -95,12 +80,13 @@ async function handleLogout() {
   state.users = [];
   state.dailyTasks = [];
   writeSession(null);
-  setAuthStatus("Logged out.");
+  setAuthStatus("Logged out.", "success");
   renderSession();
   await loadTaskView();
 }
 
 async function hydrateCurrentUser(showError = true) {
+  if (!state.session?.user) return;
   try {
     const user = await apiFetch("/api/me", { auth: true });
     state.session = { user };
@@ -112,47 +98,20 @@ async function hydrateCurrentUser(showError = true) {
       writeSession(null);
       renderSession();
     }
-    if (showError) setAuthStatus(error.message);
+    if (showError) setAuthStatus(error.message, "error");
   }
 }
 
 function renderSession() {
   const user = state.session?.user;
-  const loggedIn = Boolean(user);
+  const loggedIn = renderSessionChrome(els, user);
   const isAdmin = Boolean(user?.is_admin);
-  els.loginLinks.forEach((link) => {
-    link.href = `/login?return_to=${encodeURIComponent(window.location.pathname)}`;
-    link.classList.toggle("is-hidden", loggedIn);
-  });
-  els.logoutButtons.forEach((button) => button.classList.toggle("is-hidden", !loggedIn));
-  els.navProfiles.forEach((profile) => {
-    profile.hidden = !loggedIn;
-  });
-  els.taskForm.classList.toggle("is-hidden", !isAdmin);
-  els.sessionSummaries.forEach((summary) => {
-    summary.textContent = loggedIn ? `@${user.handle} · ${user.points ?? 0} pts` : "Signed out";
-  });
-  els.navNames.forEach((name) => {
-    name.textContent = loggedIn ? user.display_name || user.handle : "";
-  });
-  els.navAvatars.forEach((avatar) => {
-    avatar.textContent = loggedIn ? userInitials(user) : "";
-  });
+  els.taskComposerShell.hidden = !isAdmin;
   els.tasksMeta.textContent = isAdmin
     ? "Create assigned recurring tasks"
-    : loggedIn ? "Your daily tasks" : "Login to view assigned daily tasks";
+    : loggedIn ? "Complete today's assigned tasks" : "Login to view assigned daily tasks";
   renderAssignees();
   renderTasks();
-}
-
-function userInitials(user) {
-  const source = user.display_name || user.handle || "?";
-  return source
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
 }
 
 async function loadTaskView() {
@@ -170,24 +129,26 @@ async function loadTaskView() {
 }
 
 async function loadAllTasks() {
-  els.tasksList.innerHTML = `<div class="empty-state">Loading...</div>`;
+  els.tasksList.innerHTML = `<div class="loading-state" aria-label="Loading tasks"></div>`;
   try {
     const response = await apiFetch("/api/tasks");
     state.tasks = response.tasks ?? [];
     renderTasks();
   } catch (error) {
     els.tasksList.innerHTML = `<div class="error-state">${escapeHTML(error.message)}</div>`;
+    setAuthStatus(error.message, "error");
   }
 }
 
 async function loadDailyTasks() {
-  els.tasksList.innerHTML = `<div class="empty-state">Loading...</div>`;
+  els.tasksList.innerHTML = `<div class="loading-state" aria-label="Loading daily tasks"></div>`;
   try {
     const response = await apiFetch("/api/me/tasks", { auth: true });
     state.dailyTasks = response.tasks ?? [];
     renderTasks();
   } catch (error) {
     els.tasksList.innerHTML = `<div class="error-state">${escapeHTML(error.message)}</div>`;
+    setAuthStatus(error.message, "error");
   }
 }
 
@@ -197,7 +158,7 @@ async function loadUsers() {
     state.users = response.users ?? [];
     renderAssignees();
   } catch (error) {
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   }
 }
 
@@ -220,13 +181,15 @@ async function handleCreateTask(event) {
     });
     state.tasks = [...state.tasks, task];
     els.taskForm.reset();
-    els.taskForm.elements.frequency_kind.value = "daily";
+    els.taskForm.querySelector("input[name='frequency_kind'][value='daily']").checked = true;
     els.taskForm.elements.is_active.checked = true;
     handleTaskFormChange();
     updateTaskCounter();
+    els.taskTitle.focus();
+    setAuthStatus("Task created.", "success");
     renderTasks();
   } catch (error) {
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   } finally {
     els.taskForm.querySelector("button[type='submit']").disabled = false;
   }
@@ -242,6 +205,11 @@ function readTaskForm() {
   const pointValue = Number.parseInt(form.elements.point_value.value, 10);
   const assigneeIDs = Array.from(form.querySelectorAll("input[name='assignee_ids']:checked"))
     .map((input) => input.value);
+
+  if (frequencyKind === "weekly" && daysOfWeek.length === 0) {
+    setAuthStatus("Choose at least one day for weekly tasks.", "error");
+    return null;
+  }
 
   return {
     title,
@@ -282,11 +250,16 @@ function renderTasks() {
   const isAdmin = Boolean(state.session?.user?.is_admin);
   const tasks = isAdmin ? state.tasks : state.dailyTasks;
   if (!state.session?.user && !isAdmin) {
-    els.tasksList.innerHTML = `<div class="empty-state">Login to view assigned daily tasks.</div>`;
+    els.tasksList.innerHTML = `
+      <div class="empty-state action-empty">
+        <span>Login to view and complete your assigned daily tasks.</span>
+        <a class="primary-action" href="/login?return_to=${encodeURIComponent(window.location.pathname)}">Login</a>
+      </div>
+    `;
     return;
   }
   if (tasks.length === 0) {
-    els.tasksList.innerHTML = `<div class="empty-state">${isAdmin ? "No tasks found." : "No daily tasks assigned for today."}</div>`;
+    els.tasksList.innerHTML = `<div class="empty-state">${isAdmin ? "No recurring tasks yet. Add one above to start assigning work." : "No daily tasks assigned for today. You are clear for now."}</div>`;
     return;
   }
 
@@ -294,12 +267,21 @@ function renderTasks() {
 }
 
 function renderTask(task, canAdmin) {
+  const frequency = task.frequency_kind === "weekly" && task.days_of_week?.length
+    ? `weekly: ${formatDays(task.days_of_week)}`
+    : task.frequency_kind;
+  const stateLabel = task.is_active ? "active" : "inactive";
   return `
-    <article class="task-item" data-task-id="${escapeHTML(task.id)}">
+    <article class="task-item ${task.is_active ? "is-active" : "is-inactive"}" data-task-id="${escapeHTML(task.id)}">
       <div class="task-main">
         <div>
           <h3>${escapeHTML(task.title)}</h3>
-          <p>${escapeHTML(task.frequency_kind)} · ${task.point_value} points · ${task.is_active ? "active" : "inactive"}</p>
+          <p>
+            <span class="meta-pill">${escapeHTML(frequency)}</span>
+            <span class="meta-pill">${task.point_value} pts</span>
+            <span class="meta-pill ${task.is_active ? "is-live" : "is-muted"}">${stateLabel}</span>
+            ${task.individual ? `<span class="meta-pill">individual</span>` : ""}
+          </p>
         </div>
         ${canAdmin ? `
           <div class="task-actions">
@@ -309,7 +291,7 @@ function renderTask(task, canAdmin) {
           </div>
         ` : `
           <div class="task-actions">
-            <button class="primary-action compact-action" type="button" data-action="complete-task" data-task-id="${escapeHTML(task.id)}">Complete</button>
+            <button class="primary-action compact-action" type="button" data-action="complete-task" data-task-id="${escapeHTML(task.id)}">Complete +${task.point_value}</button>
           </div>
         `}
       </div>
@@ -335,15 +317,17 @@ async function deleteTask(taskID) {
       auth: true,
     });
     state.tasks = state.tasks.map((task) => task.id === taskID ? { ...task, is_active: false } : task);
+    setAuthStatus("Task deactivated.", "success");
     renderTasks();
   } catch (error) {
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   }
 }
 
 async function completeTask(taskID, button) {
   if (!taskID) return;
   button.disabled = true;
+  button.closest(".task-item")?.classList.add("is-completing");
   try {
     const response = await apiFetch(`/api/tasks/${encodeURIComponent(taskID)}/complete`, {
       method: "POST",
@@ -354,11 +338,11 @@ async function completeTask(taskID, button) {
       state.session = { ...state.session, user: response.user };
       writeSession(state.session);
     }
-    setAuthStatus(`Completed. +${response?.points_awarded ?? 0} points.`);
+    setAuthStatus(`Completed. +${response?.points_awarded ?? 0} points.`, "success");
     renderSession();
   } catch (error) {
     button.disabled = false;
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   }
 }
 
@@ -366,97 +350,19 @@ function updateTaskCounter() {
   els.taskCounter.textContent = `${els.taskTitle.value.length}/200`;
 }
 
-async function apiFetch(path, options = {}) {
-  const headers = new Headers(options.headers ?? {});
-  headers.set("Accept", "application/json");
-  if (options.body) headers.set("Content-Type", "application/json");
-
-  const response = await fetch(apiPath(path), {
-    method: options.method ?? "GET",
-    headers,
-    credentials: "same-origin",
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-
-  if (response.status === 204) return null;
-
-  const contentType = response.headers.get("Content-Type") ?? "";
-  const payload = contentType.includes("application/json") ? await response.json() : null;
-  if (response.status === 401 && options.auth && !options.skipRefresh) {
-    await apiFetch("/api/auth/refresh", { method: "POST", skipRefresh: true });
-    return apiFetch(path, { ...options, skipRefresh: true });
-  }
-  if (!response.ok) {
-    throw new APIError(payload?.error || `Request failed with status ${response.status}`, response.status);
-  }
-  return payload;
+function formatDays(days) {
+  const labels = {
+    1: "Mon",
+    2: "Tue",
+    3: "Wed",
+    4: "Thu",
+    5: "Fri",
+    6: "Sat",
+    7: "Sun",
+  };
+  return days.map((day) => labels[day] ?? day).join(", ");
 }
 
-class APIError extends Error {
-  constructor(message, status) {
-    super(message);
-    this.name = "APIError";
-    this.status = status;
-  }
-}
-
-function isAuthError(error) {
-  return error instanceof APIError && (error.status === 401 || error.status === 403);
-}
-
-function apiPath(path) {
-  if (path.startsWith("/api/")) return path;
-  return `/api${path}`;
-}
-
-function saveTokenSession(response) {
-  state.session = { user: response.user };
-  writeSession(state.session);
-}
-
-function readSession() {
-  try {
-    const session = JSON.parse(localStorage.getItem("home-api-session"));
-    if (!session?.user) return null;
-    const sanitized = { user: session.user };
-    localStorage.setItem("home-api-session", JSON.stringify(sanitized));
-    return sanitized;
-  } catch {
-    return null;
-  }
-}
-
-function readTheme() {
-  const saved = localStorage.getItem("home-api-theme");
-  if (saved === "dark" || saved === "light") return saved;
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function writeTheme(theme) {
-  localStorage.setItem("home-api-theme", theme);
-}
-
-function writeSession(session) {
-  if (!session) {
-    localStorage.removeItem("home-api-session");
-    return;
-  }
-  localStorage.setItem("home-api-session", JSON.stringify(session));
-}
-
-function setAuthStatus(message) {
-  els.authStatus.textContent = message;
-}
-
-function escapeHTML(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function escapeAttribute(value) {
-  return escapeHTML(value).replaceAll("`", "&#096;");
+function setAuthStatus(message, tone = "") {
+  setStatus(els.authStatus, message, tone);
 }

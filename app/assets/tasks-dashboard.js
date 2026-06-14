@@ -1,3 +1,18 @@
+import {
+  apiFetch,
+  bindDrawer,
+  bindTheme,
+  escapeAttribute,
+  escapeHTML,
+  hydrateIcons,
+  isAuthError,
+  readSession,
+  readTheme,
+  renderSessionChrome,
+  setStatus,
+  writeSession,
+} from "./shared.js";
+
 const state = {
   assignees: [],
   activeUserID: "",
@@ -28,19 +43,18 @@ const els = {
 init();
 
 function init() {
+  hydrateIcons();
   els.logoutButtons.forEach((button) => button.addEventListener("click", handleLogout));
-  els.themeToggles.forEach((button) => button.addEventListener("click", toggleTheme));
-  els.drawerOpen?.addEventListener("click", openDrawer);
-  els.drawerClose?.addEventListener("click", closeDrawer);
-  els.drawerBackdrop?.addEventListener("click", closeDrawer);
+  bindTheme(state, els);
+  const drawer = bindDrawer(els);
   els.refreshDashboard.addEventListener("click", loadDashboard);
   els.assigneeTabs.addEventListener("click", handleTabClick);
+  els.assigneeTabs.addEventListener("keydown", handleTabKeydown);
   els.dashboardTasks.addEventListener("click", handleTaskClick);
   window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeDrawer();
+    if (event.key === "Escape") drawer.close();
   });
 
-  renderTheme();
   renderSession();
   hydrateInitialView();
 }
@@ -48,35 +62,6 @@ function init() {
 async function hydrateInitialView() {
   await hydrateCurrentUser(false);
   await loadDashboard();
-}
-
-function toggleTheme() {
-  state.theme = state.theme === "dark" ? "light" : "dark";
-  writeTheme(state.theme);
-  renderTheme();
-}
-
-function renderTheme() {
-  document.documentElement.dataset.theme = state.theme;
-  els.themeIcons.forEach((icon) => {
-    icon.textContent = state.theme === "dark" ? "☀" : "◐";
-  });
-}
-
-function openDrawer() {
-  els.drawer?.classList.add("is-open");
-  els.drawer?.setAttribute("aria-hidden", "false");
-  if (els.drawerBackdrop) els.drawerBackdrop.hidden = false;
-  els.drawerOpen?.setAttribute("aria-expanded", "true");
-  document.body.classList.add("drawer-open");
-}
-
-function closeDrawer() {
-  els.drawer?.classList.remove("is-open");
-  els.drawer?.setAttribute("aria-hidden", "true");
-  if (els.drawerBackdrop) els.drawerBackdrop.hidden = true;
-  els.drawerOpen?.setAttribute("aria-expanded", "false");
-  document.body.classList.remove("drawer-open");
 }
 
 async function handleLogout() {
@@ -89,12 +74,13 @@ async function handleLogout() {
   state.assignees = [];
   state.activeUserID = "";
   writeSession(null);
-  setAuthStatus("Logged out.");
+  setAuthStatus("Logged out.", "success");
   renderSession();
   renderDashboard();
 }
 
 async function hydrateCurrentUser(showError = true) {
+  if (!state.session?.user) return;
   try {
     const user = await apiFetch("/api/me", { auth: true });
     state.session = { user };
@@ -106,40 +92,13 @@ async function hydrateCurrentUser(showError = true) {
       writeSession(null);
       renderSession();
     }
-    if (showError) setAuthStatus(error.message);
+    if (showError) setAuthStatus(error.message, "error");
   }
 }
 
 function renderSession() {
   const user = state.session?.user;
-  const loggedIn = Boolean(user);
-  els.loginLinks.forEach((link) => {
-    link.href = `/login?return_to=${encodeURIComponent(window.location.pathname)}`;
-    link.classList.toggle("is-hidden", loggedIn);
-  });
-  els.logoutButtons.forEach((button) => button.classList.toggle("is-hidden", !loggedIn));
-  els.navProfiles.forEach((profile) => {
-    profile.hidden = !loggedIn;
-  });
-  els.sessionSummaries.forEach((summary) => {
-    summary.textContent = loggedIn ? `@${user.handle} · ${user.points ?? 0} pts` : "Signed out";
-  });
-  els.navNames.forEach((name) => {
-    name.textContent = loggedIn ? user.display_name || user.handle : "";
-  });
-  els.navAvatars.forEach((avatar) => {
-    avatar.textContent = loggedIn ? userInitials(user) : "";
-  });
-}
-
-function userInitials(user) {
-  const source = user.display_name || user.handle || "?";
-  return source
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
+  renderSessionChrome(els, user);
 }
 
 async function loadDashboard() {
@@ -155,12 +114,12 @@ async function loadDashboard() {
   if (!state.session?.user?.is_admin) {
     state.assignees = [];
     state.activeUserID = "";
-    setAuthStatus("Admin access required.");
+    setAuthStatus("Admin access required.", "error");
     renderDashboard();
     return;
   }
 
-  els.dashboardTasks.innerHTML = `<div class="empty-state">Loading...</div>`;
+  els.dashboardTasks.innerHTML = `<div class="loading-state" aria-label="Loading dashboard"></div>`;
   try {
     const response = await apiFetch("/api/tasks/dashboard/data", { auth: true });
     state.assignees = response.assignees ?? [];
@@ -171,6 +130,7 @@ async function loadDashboard() {
     renderDashboard();
   } catch (error) {
     els.dashboardTasks.innerHTML = `<div class="error-state">${escapeHTML(error.message)}</div>`;
+    setAuthStatus(error.message, "error");
   }
 }
 
@@ -178,7 +138,12 @@ function renderDashboard() {
   if (!state.session?.user) {
     els.dashboardMeta.textContent = "";
     els.assigneeTabs.innerHTML = "";
-    els.dashboardTasks.innerHTML = `<div class="empty-state">Login as an admin.</div>`;
+    els.dashboardTasks.innerHTML = `
+      <div class="empty-state action-empty">
+        <span>Login with an admin account to monitor and complete household assignments.</span>
+        <a class="primary-action" href="/login?return_to=${encodeURIComponent(window.location.pathname)}">Login</a>
+      </div>
+    `;
     return;
   }
   if (!state.session?.user?.is_admin) {
@@ -189,7 +154,7 @@ function renderDashboard() {
   }
   if (state.assignees.length === 0) {
     els.assigneeTabs.innerHTML = "";
-    els.dashboardTasks.innerHTML = `<div class="empty-state">No assignments available today.</div>`;
+    els.dashboardTasks.innerHTML = `<div class="empty-state">No assignments available today. Create recurring tasks or check back tomorrow.</div>`;
     return;
   }
 
@@ -206,10 +171,13 @@ function renderAssigneeTab(assignee) {
   const active = user.id === state.activeUserID;
   const openCount = assignee.tasks?.length ?? 0;
   const completedCount = assignee.completed_tasks?.length ?? 0;
+  const totalCount = openCount + completedCount;
+  const progress = totalCount === 0 ? 100 : Math.round((completedCount / totalCount) * 100);
   return `
-    <button class="assignee-tab${active ? " is-active" : ""}" type="button" role="tab" aria-selected="${active ? "true" : "false"}" data-user-id="${escapeAttribute(user.id)}">
+    <button class="assignee-tab${active ? " is-active" : ""}" type="button" role="tab" aria-selected="${active ? "true" : "false"}" tabindex="${active ? "0" : "-1"}" aria-controls="dashboardTasks" aria-label="${escapeAttribute(`${user.display_name}: ${openCount} open, ${completedCount} complete, ${user.points ?? 0} points`)}" data-user-id="${escapeAttribute(user.id)}">
       <span>${escapeHTML(user.display_name)}</span>
       <small>${openCount} open · ${completedCount} done · ${user.points ?? 0} pts</small>
+      <span class="progress-track" aria-hidden="true"><span style="--progress: ${progress}%"></span></span>
     </button>
   `;
 }
@@ -259,7 +227,7 @@ function renderOpenTask(task) {
         <h3>${escapeHTML(task.title)}</h3>
         <p>${escapeHTML(task.frequency_kind)} · ${task.point_value} points</p>
       </div>
-      <button class="primary-action complete-action" type="button" data-action="complete-task" data-task-id="${escapeAttribute(task.id)}">Complete</button>
+      <button class="primary-action complete-action" type="button" data-action="complete-task" data-task-id="${escapeAttribute(task.id)}">Complete +${task.point_value}</button>
     </article>
   `;
 }
@@ -283,6 +251,28 @@ function handleTabClick(event) {
   renderDashboard();
 }
 
+function handleTabKeydown(event) {
+  const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+  if (!keys.includes(event.key)) return;
+
+  const tabs = Array.from(els.assigneeTabs.querySelectorAll("[role='tab']"));
+  if (!tabs.length) return;
+
+  event.preventDefault();
+  const currentIndex = Math.max(0, tabs.findIndex((tab) => tab.dataset.userId === state.activeUserID));
+  let nextIndex = currentIndex;
+  if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+  if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+  if (event.key === "Home") nextIndex = 0;
+  if (event.key === "End") nextIndex = tabs.length - 1;
+
+  state.activeUserID = tabs[nextIndex].dataset.userId;
+  renderDashboard();
+  window.requestAnimationFrame(() => {
+    els.assigneeTabs.querySelector(`[data-user-id="${CSS.escape(state.activeUserID)}"]`)?.focus();
+  });
+}
+
 function handleTaskClick(event) {
   const button = event.target.closest("[data-action='complete-task']");
   if (!button) return;
@@ -294,6 +284,7 @@ async function completeDashboardTask(taskID, button) {
   if (!assignee || !taskID) return;
 
   button.disabled = true;
+  button.closest(".dashboard-task")?.classList.add("is-completing");
   try {
     const task = assignee.tasks.find((item) => item.id === taskID);
     const response = await apiFetch(`/api/tasks/dashboard/users/${encodeURIComponent(assignee.user.id)}/tasks/${encodeURIComponent(taskID)}/complete`, {
@@ -318,94 +309,16 @@ async function completeDashboardTask(taskID, button) {
         renderSession();
       }
     }
-    setAuthStatus(`${assignee.user.display_name}: +${response?.points_awarded ?? 0} points.`);
+    setAuthStatus(`${assignee.user.display_name}: +${response?.points_awarded ?? 0} points.`, "success");
     renderDashboard();
   } catch (error) {
     button.disabled = false;
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   }
 }
 
 function activeAssignee() {
   return state.assignees.find((assignee) => assignee.user.id === state.activeUserID) ?? null;
-}
-
-async function apiFetch(path, options = {}) {
-  const headers = new Headers(options.headers ?? {});
-  headers.set("Accept", "application/json");
-  if (options.body) headers.set("Content-Type", "application/json");
-
-  const response = await fetch(apiPath(path), {
-    method: options.method ?? "GET",
-    headers,
-    credentials: "same-origin",
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-
-  if (response.status === 204) return null;
-
-  const contentType = response.headers.get("Content-Type") ?? "";
-  const payload = contentType.includes("application/json") ? await response.json() : null;
-  if (response.status === 401 && options.auth && !options.skipRefresh) {
-    await apiFetch("/api/auth/refresh", { method: "POST", skipRefresh: true });
-    return apiFetch(path, { ...options, skipRefresh: true });
-  }
-  if (!response.ok) {
-    throw new APIError(payload?.error || `Request failed with status ${response.status}`, response.status);
-  }
-  return payload;
-}
-
-class APIError extends Error {
-  constructor(message, status) {
-    super(message);
-    this.name = "APIError";
-    this.status = status;
-  }
-}
-
-function isAuthError(error) {
-  return error instanceof APIError && (error.status === 401 || error.status === 403);
-}
-
-function apiPath(path) {
-  if (path.startsWith("/api/")) return path;
-  return `/api${path}`;
-}
-
-function saveTokenSession(response) {
-  state.session = { user: response.user };
-  writeSession(state.session);
-}
-
-function readSession() {
-  try {
-    const session = JSON.parse(localStorage.getItem("home-api-session"));
-    if (!session?.user) return null;
-    const sanitized = { user: session.user };
-    localStorage.setItem("home-api-session", JSON.stringify(sanitized));
-    return sanitized;
-  } catch {
-    return null;
-  }
-}
-
-function readTheme() {
-  const saved = localStorage.getItem("home-api-theme");
-  if (saved === "dark" || saved === "light") return saved;
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function writeTheme(theme) {
-  localStorage.setItem("home-api-theme", theme);
-}
-
-function writeSession(session) {
-  if (!session) {
-    localStorage.removeItem("home-api-session");
-    return;
-  }
-  localStorage.setItem("home-api-session", JSON.stringify(session));
 }
 
 function formatDateLabel(value) {
@@ -417,19 +330,6 @@ function formatTime(value) {
   return new Date(value).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-function setAuthStatus(message) {
-  els.authStatus.textContent = message;
-}
-
-function escapeHTML(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function escapeAttribute(value) {
-  return escapeHTML(value).replaceAll("`", "&#096;");
+function setAuthStatus(message, tone = "") {
+  setStatus(els.authStatus, message, tone);
 }

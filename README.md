@@ -18,6 +18,12 @@ It includes:
 
 ```text
 .
+├── app
+│   ├── assets
+│   ├── index.html
+│   ├── login.html
+│   ├── tasks-dashboard.html
+│   └── tasks.html
 ├── cmd
 │   ├── api/main.go
 │   └── token/main.go

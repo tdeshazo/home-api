@@ -1,3 +1,16 @@
+import {
+  apiFetch,
+  bindDrawer,
+  bindTheme,
+  hydrateIcons,
+  isAuthError,
+  readSession,
+  readTheme,
+  renderSessionChrome,
+  setStatus,
+  writeSession,
+} from "./shared.js";
+
 const state = {
   theme: readTheme(),
   session: readSession(),
@@ -28,6 +41,7 @@ const els = {
 init();
 
 function init() {
+  hydrateIcons();
   els.authTabs.forEach((button) => {
     button.addEventListener("click", () => selectAuthTab(button.dataset.authTab));
   });
@@ -41,15 +55,9 @@ function init() {
       handleDevLogin();
     });
   });
-  els.themeToggles.forEach((button) => button.addEventListener("click", toggleTheme));
-  els.drawerOpen?.addEventListener("click", openDrawer);
-  els.drawerClose?.addEventListener("click", closeDrawer);
-  els.drawerBackdrop?.addEventListener("click", closeDrawer);
-  window.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeDrawer();
-  });
+  bindTheme(state, els);
+  bindDrawer(els);
 
-  renderTheme();
   renderSession();
   hydrateCurrentUser(false);
 }
@@ -62,35 +70,6 @@ function selectAuthTab(tab) {
     view.classList.toggle("is-hidden", view.dataset.authView !== tab);
   });
   setAuthStatus("");
-}
-
-function toggleTheme() {
-  state.theme = state.theme === "dark" ? "light" : "dark";
-  writeTheme(state.theme);
-  renderTheme();
-}
-
-function renderTheme() {
-  document.documentElement.dataset.theme = state.theme;
-  els.themeIcons.forEach((icon) => {
-    icon.textContent = state.theme === "dark" ? "☀" : "◐";
-  });
-}
-
-function openDrawer() {
-  els.drawer?.classList.add("is-open");
-  els.drawer?.setAttribute("aria-hidden", "false");
-  if (els.drawerBackdrop) els.drawerBackdrop.hidden = false;
-  els.drawerOpen?.setAttribute("aria-expanded", "true");
-  document.body.classList.add("drawer-open");
-}
-
-function closeDrawer() {
-  els.drawer?.classList.remove("is-open");
-  els.drawer?.setAttribute("aria-hidden", "true");
-  if (els.drawerBackdrop) els.drawerBackdrop.hidden = true;
-  els.drawerOpen?.setAttribute("aria-expanded", "false");
-  document.body.classList.remove("drawer-open");
 }
 
 async function handleLogin(event) {
@@ -107,10 +86,10 @@ async function handleLogin(event) {
     });
     saveSession(response.user);
     els.loginForm.reset();
-    setAuthStatus("Logged in.");
+    setAuthStatus("Logged in.", "success");
     redirectAfterLogin();
   } catch (error) {
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   }
 }
 
@@ -130,17 +109,17 @@ async function handleRegister(event) {
     });
     saveSession(response.user);
     els.registerForm.reset();
-    setAuthStatus("Account ready.");
+    setAuthStatus("Account ready.", "success");
     redirectAfterLogin();
   } catch (error) {
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   }
 }
 
 async function handleDevLogin() {
   const userID = els.devUserID.value.trim();
   if (!userID) {
-    setAuthStatus("User UUID is required.");
+    setAuthStatus("User UUID is required.", "error");
     return;
   }
 
@@ -151,10 +130,10 @@ async function handleDevLogin() {
       body: { user_id: userID },
     });
     saveSession(response.user);
-    setAuthStatus("Dev user selected.");
+    setAuthStatus("Dev user selected.", "success");
     redirectAfterLogin();
   } catch (error) {
-    setAuthStatus(error.message);
+    setAuthStatus(error.message, "error");
   }
 }
 
@@ -166,11 +145,12 @@ async function handleLogout() {
   }
   state.session = null;
   writeSession(null);
-  setAuthStatus("Logged out.");
+  setAuthStatus("Logged out.", "success");
   renderSession();
 }
 
 async function hydrateCurrentUser(showError = true) {
+  if (!state.session?.user) return;
   try {
     const user = await apiFetch("/api/me", { auth: true });
     saveSession(user);
@@ -180,46 +160,8 @@ async function hydrateCurrentUser(showError = true) {
       writeSession(null);
       renderSession();
     }
-    if (showError) setAuthStatus(error.message);
+    if (showError) setAuthStatus(error.message, "error");
   }
-}
-
-async function apiFetch(path, options = {}) {
-  const headers = new Headers(options.headers ?? {});
-  headers.set("Accept", "application/json");
-  if (options.body) headers.set("Content-Type", "application/json");
-
-  const response = await fetch(path, {
-    method: options.method ?? "GET",
-    headers,
-    credentials: "same-origin",
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-
-  if (response.status === 204) return null;
-
-  const contentType = response.headers.get("Content-Type") ?? "";
-  const payload = contentType.includes("application/json") ? await response.json() : null;
-  if (response.status === 401 && options.auth && !options.skipRefresh) {
-    await apiFetch("/api/auth/refresh", { method: "POST", skipRefresh: true });
-    return apiFetch(path, { ...options, skipRefresh: true });
-  }
-  if (!response.ok) {
-    throw new APIError(payload?.error || `Request failed with status ${response.status}`, response.status);
-  }
-  return payload;
-}
-
-class APIError extends Error {
-  constructor(message, status) {
-    super(message);
-    this.name = "APIError";
-    this.status = status;
-  }
-}
-
-function isAuthError(error) {
-  return error instanceof APIError && (error.status === 401 || error.status === 403);
 }
 
 function saveSession(user) {
@@ -230,30 +172,7 @@ function saveSession(user) {
 
 function renderSession() {
   const user = state.session?.user;
-  const loggedIn = Boolean(user);
-  els.logoutButtons.forEach((button) => button.classList.toggle("is-hidden", !loggedIn));
-  els.navProfiles.forEach((profile) => {
-    profile.hidden = !loggedIn;
-  });
-  els.sessionSummaries.forEach((summary) => {
-    summary.textContent = loggedIn ? `@${user.handle} · ${user.points ?? 0} pts` : "Signed out";
-  });
-  els.navNames.forEach((name) => {
-    name.textContent = loggedIn ? user.display_name || user.handle : "";
-  });
-  els.navAvatars.forEach((avatar) => {
-    avatar.textContent = loggedIn ? userInitials(user) : "";
-  });
-}
-
-function userInitials(user) {
-  const source = user.display_name || user.handle || "?";
-  return source
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
+  renderSessionChrome(els, user);
 }
 
 function redirectAfterLogin() {
@@ -267,36 +186,6 @@ function safeReturnPath(value) {
   return value;
 }
 
-function readSession() {
-  try {
-    const session = JSON.parse(localStorage.getItem("home-api-session"));
-    if (!session?.user) return null;
-    const sanitized = { user: session.user };
-    localStorage.setItem("home-api-session", JSON.stringify(sanitized));
-    return sanitized;
-  } catch {
-    return null;
-  }
-}
-
-function readTheme() {
-  const saved = localStorage.getItem("home-api-theme");
-  if (saved === "dark" || saved === "light") return saved;
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-function writeTheme(theme) {
-  localStorage.setItem("home-api-theme", theme);
-}
-
-function writeSession(session) {
-  if (!session) {
-    localStorage.removeItem("home-api-session");
-    return;
-  }
-  localStorage.setItem("home-api-session", JSON.stringify(session));
-}
-
-function setAuthStatus(message) {
-  els.authStatus.textContent = message;
+function setAuthStatus(message, tone = "") {
+  setStatus(els.authStatus, message, tone);
 }
