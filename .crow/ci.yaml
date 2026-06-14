@@ -7,12 +7,6 @@ when:
   - event: manual
     branch: main
 
-variables:
-  registry: cr.home.deshazo.dev
-  image_repo: cr.home.deshazo.dev/homeapi
-  app_name: home-api-app
-  app_port: 8888
-
 steps:
   - name: lint
     image: golang:1.26.4-alpine
@@ -65,10 +59,14 @@ steps:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     commands: |
+      registry="cr.home.deshazo.dev"
+      image_repo="cr.home.deshazo.dev/homeapi"
+      app_name="home-api-app"
+      app_port="8888"
       build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       docker version
-      echo "$${REGISTRY_PASSWORD}" | docker login ${registry} -u "$${REGISTRY_USERNAME}" --password-stdin
+      echo "$REGISTRY_PASSWORD" | docker login "$registry" -u "$REGISTRY_USERNAME" --password-stdin
 
       docker build \
         --build-arg GIT_SHA="$CI_COMMIT_SHA" \
@@ -76,21 +74,21 @@ steps:
         --label "org.opencontainers.image.created=$build_time" \
         --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
         --label "org.opencontainers.image.source=$CI_REPO_CLONE_URL" \
-        -t ${image_repo}:$CI_COMMIT_SHA \
+        -t "$image_repo:$CI_COMMIT_SHA" \
         .
 
-      docker push ${image_repo}:$CI_COMMIT_SHA
-      docker pull ${image_repo}:$CI_COMMIT_SHA
-      docker stop -t 15 ${app_name} 2>/dev/null || true
-      docker rm ${app_name} 2>/dev/null || true
+      docker push "$image_repo:$CI_COMMIT_SHA"
+      docker pull "$image_repo:$CI_COMMIT_SHA"
+      docker stop -t 15 "$app_name" 2>/dev/null || true
+      docker rm "$app_name" 2>/dev/null || true
 
       docker run -d \
-        --name ${app_name} \
+        --name "$app_name" \
         --restart unless-stopped \
         --stop-timeout 15 \
         --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" \
         --label "dev.deshazo.homeapi.managed-by=crow" \
-        -p ${app_port}:8080 \
+        -p "$app_port:8080" \
         --env APP_ENV=production \
         --env PORT=8080 \
         --env DATABASE_URL \
@@ -102,9 +100,9 @@ steps:
         --env JWT_AUDIENCE=home-api-api \
         --env AUTH_ACCESS_TOKEN_TTL=15m \
         --env AUTH_REFRESH_TOKEN_TTL=720h \
-        ${image_repo}:$CI_COMMIT_SHA
+        "$image_repo:$CI_COMMIT_SHA"
 
-      docker ps --filter "name=${app_name}"
+      docker ps --filter "name=$app_name"
     when:
       - event: push
         branch: main
