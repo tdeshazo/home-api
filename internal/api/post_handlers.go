@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/tdeshazo/home-api/internal/db"
+
+	"github.com/google/uuid"
 )
 
 func (s *Server) createPost(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +109,7 @@ func (s *Server) listPostReplies(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimit(r, 50)
 	offset := parseOffset(r)
 	replies, err := s.queries.ListPostReplies(r.Context(), db.ListPostRepliesParams{
-		ParentPostID: parentPostID,
+		ParentPostID: uuid.NullUUID{UUID: parentPostID, Valid: true},
 		Limit:        limit,
 		Offset:       offset,
 	})

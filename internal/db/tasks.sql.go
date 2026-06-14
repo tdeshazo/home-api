@@ -13,6 +13,22 @@ import (
 	"github.com/lib/pq"
 )
 
+const assignTask = `-- name: AssignTask :exec
+INSERT INTO task_assignments (task_id, user_id)
+VALUES ($1, $2)
+ON CONFLICT (task_id, user_id) DO NOTHING
+`
+
+type AssignTaskParams struct {
+	TaskID uuid.UUID `json:"task_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) AssignTask(ctx context.Context, arg AssignTaskParams) error {
+	_, err := q.db.ExecContext(ctx, assignTask, arg.TaskID, arg.UserID)
+	return err
+}
+
 const availableTasks = `-- name: AvailableTasks :many
 SELECT t.id, t.title, t.frequency_kind, t.days_of_week, t.point_value, t.individual, t.is_active, t.created_at, t.updated_at
 FROM tasks t
@@ -73,85 +89,6 @@ func (q *Queries) AvailableTasks(ctx context.Context, arg AvailableTasksParams) 
 	return items, nil
 }
 
-const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (
-    id,
-    title,
-    frequency_kind,
-    days_of_week,
-    point_value,
-    individual,
-    is_active
-) VALUES (
-    gen_random_uuid(),
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6
-)
-RETURNING
-    id,
-    title,
-    frequency_kind,
-    days_of_week,
-    point_value,
-    individual,
-    is_active,
-    created_at,
-    updated_at
-`
-
-type CreateTaskParams struct {
-	Title         string  `json:"title"`
-	FrequencyKind string  `json:"frequency_kind"`
-	DaysOfWeek    []int64 `json:"days_of_week"`
-	PointValue    int32   `json:"point_value"`
-	Individual    bool    `json:"individual"`
-	IsActive      bool    `json:"is_active"`
-}
-
-func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
-	row := q.db.QueryRowContext(ctx, createTask,
-		arg.Title,
-		arg.FrequencyKind,
-		pq.Array(arg.DaysOfWeek),
-		arg.PointValue,
-		arg.Individual,
-		arg.IsActive,
-	)
-	var i Task
-	err := row.Scan(
-		&i.ID,
-		&i.Title,
-		&i.FrequencyKind,
-		pq.Array(&i.DaysOfWeek),
-		&i.PointValue,
-		&i.Individual,
-		&i.IsActive,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const assignTask = `-- name: AssignTask :exec
-INSERT INTO task_assignments (task_id, user_id)
-VALUES ($1, $2)
-ON CONFLICT (task_id, user_id) DO NOTHING
-`
-
-type AssignTaskParams struct {
-	TaskID uuid.UUID `json:"task_id"`
-	UserID uuid.UUID `json:"user_id"`
-}
-
-func (q *Queries) AssignTask(ctx context.Context, arg AssignTaskParams) error {
-	_, err := q.db.ExecContext(ctx, assignTask, arg.TaskID, arg.UserID)
-	return err
-}
-
 const completeTask = `-- name: CompleteTask :one
 WITH task_to_complete AS (
     SELECT t.id, t.point_value
@@ -187,9 +124,9 @@ JOIN task_to_complete ON task_to_complete.id = inserted.task_id
 `
 
 type CompleteTaskParams struct {
-	TaskID      uuid.UUID `json:"task_id"`
-	UserID      uuid.UUID `json:"user_id"`
-	CompletedOn time.Time `json:"completed_on"`
+	ID      uuid.UUID `json:"id"`
+	UserID  uuid.UUID `json:"user_id"`
+	Column3 time.Time `json:"column_3"`
 }
 
 type CompleteTaskRow struct {
@@ -202,7 +139,7 @@ type CompleteTaskRow struct {
 }
 
 func (q *Queries) CompleteTask(ctx context.Context, arg CompleteTaskParams) (CompleteTaskRow, error) {
-	row := q.db.QueryRowContext(ctx, completeTask, arg.TaskID, arg.UserID, arg.CompletedOn)
+	row := q.db.QueryRowContext(ctx, completeTask, arg.ID, arg.UserID, arg.Column3)
 	var i CompleteTaskRow
 	err := row.Scan(
 		&i.ID,
@@ -286,14 +223,67 @@ func (q *Queries) CompletedTasks(ctx context.Context, arg CompletedTasksParams) 
 	return items, nil
 }
 
-const deleteTaskAssignments = `-- name: DeleteTaskAssignments :exec
-DELETE FROM task_assignments
-WHERE task_id = $1
+const createTask = `-- name: CreateTask :one
+INSERT INTO tasks (
+    id,
+    title,
+    frequency_kind,
+    days_of_week,
+    point_value,
+    individual,
+    is_active
+) VALUES (
+    gen_random_uuid(),
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6
+)
+RETURNING
+    id,
+    title,
+    frequency_kind,
+    days_of_week,
+    point_value,
+    individual,
+    is_active,
+    created_at,
+    updated_at
 `
 
-func (q *Queries) DeleteTaskAssignments(ctx context.Context, taskID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteTaskAssignments, taskID)
-	return err
+type CreateTaskParams struct {
+	Title         string  `json:"title"`
+	FrequencyKind string  `json:"frequency_kind"`
+	DaysOfWeek    []int64 `json:"days_of_week"`
+	PointValue    int32   `json:"point_value"`
+	Individual    bool    `json:"individual"`
+	IsActive      bool    `json:"is_active"`
+}
+
+func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
+	row := q.db.QueryRowContext(ctx, createTask,
+		arg.Title,
+		arg.FrequencyKind,
+		pq.Array(arg.DaysOfWeek),
+		arg.PointValue,
+		arg.Individual,
+		arg.IsActive,
+	)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.FrequencyKind,
+		pq.Array(&i.DaysOfWeek),
+		&i.PointValue,
+		&i.Individual,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const deleteTask = `-- name: DeleteTask :execrows
@@ -308,6 +298,16 @@ func (q *Queries) DeleteTask(ctx context.Context, id uuid.UUID) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const deleteTaskAssignments = `-- name: DeleteTaskAssignments :exec
+DELETE FROM task_assignments
+WHERE task_id = $1
+`
+
+func (q *Queries) DeleteTaskAssignments(ctx context.Context, taskID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteTaskAssignments, taskID)
+	return err
 }
 
 const getTask = `-- name: GetTask :one
@@ -376,8 +376,8 @@ WHERE (
 ORDER BY u.display_name ASC, u.handle ASC
 `
 
-func (q *Queries) ListAvailableTaskAssignees(ctx context.Context, column1 time.Time) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, listAvailableTaskAssignees, column1)
+func (q *Queries) ListAvailableTaskAssignees(ctx context.Context, dollar_1 time.Time) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listAvailableTaskAssignees, dollar_1)
 	if err != nil {
 		return nil, err
 	}

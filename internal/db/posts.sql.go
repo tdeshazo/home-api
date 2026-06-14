@@ -23,9 +23,17 @@ type CreatePostParams struct {
 	Body   string    `json:"body"`
 }
 
-func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, error) {
+type CreatePostRow struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (CreatePostRow, error) {
 	row := q.db.QueryRowContext(ctx, createPost, arg.UserID, arg.Body)
-	var i Post
+	var i CreatePostRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -38,9 +46,9 @@ func (q *Queries) CreatePost(ctx context.Context, arg CreatePostParams) (Post, e
 
 const createReply = `-- name: CreateReply :one
 WITH parent AS (
-    SELECT id, COALESCE(root_post_id, id) AS root_post_id
+    SELECT posts.id, COALESCE(root_post_id, id) AS root_post_id
     FROM posts
-    WHERE id = $1
+    WHERE posts.id = $1
 )
 INSERT INTO posts (user_id, body, parent_post_id, root_post_id)
 SELECT $2, $3, parent.id, parent.root_post_id
@@ -54,9 +62,17 @@ type CreateReplyParams struct {
 	Body   string    `json:"body"`
 }
 
-func (q *Queries) CreateReply(ctx context.Context, arg CreateReplyParams) (Post, error) {
+type CreateReplyRow struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) CreateReply(ctx context.Context, arg CreateReplyParams) (CreateReplyRow, error) {
 	row := q.db.QueryRowContext(ctx, createReply, arg.ID, arg.UserID, arg.Body)
-	var i Post
+	var i CreateReplyRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -88,9 +104,17 @@ FROM posts
 WHERE id = $1
 `
 
-func (q *Queries) GetPost(ctx context.Context, id uuid.UUID) (Post, error) {
+type GetPostRow struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) GetPost(ctx context.Context, id uuid.UUID) (GetPostRow, error) {
 	row := q.db.QueryRowContext(ctx, getPost, id)
-	var i Post
+	var i GetPostRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -112,9 +136,17 @@ type GetPostForUserParams struct {
 	UserID uuid.UUID `json:"user_id"`
 }
 
-func (q *Queries) GetPostForUser(ctx context.Context, arg GetPostForUserParams) (Post, error) {
+type GetPostForUserRow struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) GetPostForUser(ctx context.Context, arg GetPostForUserParams) (GetPostForUserRow, error) {
 	row := q.db.QueryRowContext(ctx, getPostForUser, arg.ID, arg.UserID)
-	var i Post
+	var i GetPostForUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -123,6 +155,67 @@ func (q *Queries) GetPostForUser(ctx context.Context, arg GetPostForUserParams) 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listPostReplies = `-- name: ListPostReplies :many
+SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at, count(replies.id)::bigint AS reply_count
+FROM posts
+JOIN users ON users.id = posts.user_id
+LEFT JOIN posts AS replies ON replies.parent_post_id = posts.id
+WHERE posts.parent_post_id = $1
+GROUP BY posts.id, users.display_name, users.handle
+ORDER BY posts.created_at ASC, posts.id ASC
+LIMIT $2
+OFFSET $3
+`
+
+type ListPostRepliesParams struct {
+	ParentPostID uuid.NullUUID `json:"parent_post_id"`
+	Limit        int32         `json:"limit"`
+	Offset       int32         `json:"offset"`
+}
+
+type ListPostRepliesRow struct {
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	Handle      string    `json:"handle"`
+	Body        string    `json:"body"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	ReplyCount  int64     `json:"reply_count"`
+}
+
+func (q *Queries) ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]ListPostRepliesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPostReplies, arg.ParentPostID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPostRepliesRow{}
+	for rows.Next() {
+		var i ListPostRepliesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.DisplayName,
+			&i.Handle,
+			&i.Body,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ReplyCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listPosts = `-- name: ListPosts :many
@@ -246,67 +339,6 @@ func (q *Queries) ListPostsByUser(ctx context.Context, arg ListPostsByUserParams
 	return items, nil
 }
 
-const listPostReplies = `-- name: ListPostReplies :many
-SELECT posts.id, posts.user_id, users.display_name, users.handle, posts.body, posts.created_at, posts.updated_at, count(replies.id)::bigint AS reply_count
-FROM posts
-JOIN users ON users.id = posts.user_id
-LEFT JOIN posts AS replies ON replies.parent_post_id = posts.id
-WHERE posts.parent_post_id = $1
-GROUP BY posts.id, users.display_name, users.handle
-ORDER BY posts.created_at ASC, posts.id ASC
-LIMIT $2
-OFFSET $3
-`
-
-type ListPostRepliesParams struct {
-	ParentPostID uuid.UUID `json:"parent_post_id"`
-	Limit        int32     `json:"limit"`
-	Offset       int32     `json:"offset"`
-}
-
-type ListPostRepliesRow struct {
-	ID          uuid.UUID `json:"id"`
-	UserID      uuid.UUID `json:"user_id"`
-	DisplayName string    `json:"display_name"`
-	Handle      string    `json:"handle"`
-	Body        string    `json:"body"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	ReplyCount  int64     `json:"reply_count"`
-}
-
-func (q *Queries) ListPostReplies(ctx context.Context, arg ListPostRepliesParams) ([]ListPostRepliesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listPostReplies, arg.ParentPostID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListPostRepliesRow{}
-	for rows.Next() {
-		var i ListPostRepliesRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.DisplayName,
-			&i.Handle,
-			&i.Body,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ReplyCount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const updatePostForUser = `-- name: UpdatePostForUser :one
 UPDATE posts
 SET body = $3,
@@ -321,9 +353,17 @@ type UpdatePostForUserParams struct {
 	Body   string    `json:"body"`
 }
 
-func (q *Queries) UpdatePostForUser(ctx context.Context, arg UpdatePostForUserParams) (Post, error) {
+type UpdatePostForUserRow struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (q *Queries) UpdatePostForUser(ctx context.Context, arg UpdatePostForUserParams) (UpdatePostForUserRow, error) {
 	row := q.db.QueryRowContext(ctx, updatePostForUser, arg.ID, arg.UserID, arg.Body)
-	var i Post
+	var i UpdatePostForUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,

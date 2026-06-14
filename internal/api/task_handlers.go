@@ -255,9 +255,9 @@ func (s *Server) completeTaskForUser(w http.ResponseWriter, r *http.Request, tas
 
 	queries := s.queries.WithTx(tx)
 	completion, err := queries.CompleteTask(r.Context(), db.CompleteTaskParams{
-		TaskID:      taskID,
-		UserID:      userID,
-		CompletedOn: time.Now().In(time.Local),
+		ID:      taskID,
+		UserID:  userID,
+		Column3: time.Now().In(time.Local),
 	})
 	if err != nil {
 		SetLogError(r.Context(), err)

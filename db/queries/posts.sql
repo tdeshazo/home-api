@@ -5,9 +5,9 @@ RETURNING id, user_id, body, created_at, updated_at;
 
 -- name: CreateReply :one
 WITH parent AS (
-    SELECT id, COALESCE(root_post_id, id) AS root_post_id
+    SELECT posts.id, COALESCE(root_post_id, id) AS root_post_id
     FROM posts
-    WHERE id = $1
+    WHERE posts.id = $1
 )
 INSERT INTO posts (user_id, body, parent_post_id, root_post_id)
 SELECT $2, $3, parent.id, parent.root_post_id
