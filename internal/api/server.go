@@ -46,10 +46,10 @@ func (s *Server) Routes() http.Handler {
 	}
 
 	public("GET /{$}", s.frontend)
-	public("GET /posts", s.frontend)
 	public("GET /login", s.loginFrontend)
-	public("GET /tasks/dashboard", s.taskDashboardFrontend)
 	public("GET /tasks", s.tasksFrontend)
+	public("GET /posts", s.frontend)
+	public("GET /tasks/dashboard", s.taskDashboardFrontend)
 	publicHandler("GET /assets/", http.StripPrefix("/assets/", frontendAssets()))
 
 	public("GET /api/healthz", s.healthz)
@@ -64,21 +64,21 @@ func (s *Server) Routes() http.Handler {
 	public("GET /api/tasks", s.listTasks)
 	public("GET /api/users/{userID}/posts", s.listPostsByUser)
 
+	protected("POST /api/api-keys", s.createAPIKey)
+	protected("GET /api/users", s.listUsers)
 	protected("GET /api/me", s.me)
 	protected("GET /api/me/tasks", s.listMyDailyTasks)
-	protected("GET /api/users", s.listUsers)
-	protected("GET /api/tasks/dashboard/data", s.taskDashboardData)
-	protected("POST /api/api-keys", s.createAPIKey)
 	protected("GET /api/me/posts", s.listMyPosts)
 	protected("POST /api/posts", s.createPost)
 	protected("POST /api/posts/{id}/replies", s.createReply)
 	protected("PATCH /api/posts/{id}", s.updatePost)
 	protected("DELETE /api/posts/{id}", s.deletePost)
 	protected("POST /api/tasks", s.createTask)
-	protected("POST /api/tasks/dashboard/users/{userID}/tasks/{id}/complete", s.completeDashboardTask)
 	protected("POST /api/tasks/{id}/complete", s.completeTask)
 	protected("PATCH /api/tasks/{id}", s.updateTask)
 	protected("DELETE /api/tasks/{id}", s.deleteTask)
+	protected("GET /api/tasks/dashboard/data", s.taskDashboardData)
+	protected("POST /api/tasks/dashboard/users/{userID}/tasks/{id}/complete", s.completeDashboardTask)
 
 	return mux
 }
