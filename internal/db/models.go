@@ -43,7 +43,7 @@ type Task struct {
 	ID            uuid.UUID `json:"id"`
 	Title         string    `json:"title"`
 	FrequencyKind string    `json:"frequency_kind"`
-	DaysOfWeek    []int16   `json:"days_of_week"`
+	DaysOfWeek    []int64   `json:"days_of_week"`
 	PointValue    int32     `json:"point_value"`
 	Individual    bool      `json:"individual"`
 	IsActive      bool      `json:"is_active"`

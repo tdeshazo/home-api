@@ -22,7 +22,7 @@ var allowedTaskFrequencies = map[string]bool{
 type taskInput struct {
 	Title         string   `json:"title"`
 	FrequencyKind string   `json:"frequency_kind"`
-	DaysOfWeek    []int16  `json:"days_of_week"`
+	DaysOfWeek    []int64  `json:"days_of_week"`
 	PointValue    int32    `json:"point_value"`
 	Individual    bool     `json:"individual"`
 	IsActive      bool     `json:"is_active"`
@@ -382,7 +382,7 @@ func parseTaskInput(w http.ResponseWriter, r *http.Request) (taskInput, bool) {
 		return taskInput{}, false
 	}
 	if input.FrequencyKind == "daily" {
-		input.DaysOfWeek = []int16{}
+		input.DaysOfWeek = []int64{}
 	}
 	if input.FrequencyKind == "weekly" {
 		if len(input.DaysOfWeek) == 0 {

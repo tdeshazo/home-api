@@ -28,3 +28,5 @@ sql:
               type: "Time"
           - db_type: "citext"
             go_type: "string"
+          - db_type: "pg_catalog.int2"
+            go_type: "int64"
