@@ -68,7 +68,7 @@ button:disabled {
   min-height: 100vh;
 }
 
-.topbar {
+.mobile-header {
   position: sticky;
   top: 0;
   z-index: 5;
@@ -84,7 +84,8 @@ button:disabled {
 }
 
 .brand,
-.topbar-actions {
+.drawer-head,
+.nav-footer {
   display: inline-flex;
   align-items: center;
 }
@@ -102,39 +103,127 @@ button:disabled {
   flex: 0 0 auto;
 }
 
-.topbar-actions {
-  gap: 12px;
-}
-
-.topnav {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.topnav a {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 8px;
-  padding: 0 10px;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 750;
-  text-decoration: none;
-}
-
-.topnav a:hover,
-.topnav a[aria-current="page"] {
-  color: var(--ink);
-  background: var(--surface-muted);
-}
-
 .session {
   min-height: 24px;
   color: var(--muted);
   font-size: 14px;
-  text-align: right;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgba(10, 18, 20, 0.42);
+}
+
+.mobile-drawer,
+.side-rail {
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+}
+
+.mobile-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(400px, 80vw);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  transform: translateX(-100%);
+  transition: transform 180ms ease;
+}
+
+body.drawer-open {
+  overflow: hidden;
+}
+
+.mobile-drawer.is-open {
+  transform: translateX(0);
+}
+
+.drawer-head,
+.nav-footer {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.nav-footer .secondary-action,
+.mobile-drawer .session-action,
+.side-rail .session-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-profile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 68px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.nav-profile strong,
+.nav-profile span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-profile strong {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.nav-profile .session {
+  min-height: 0;
+  margin-top: 3px;
+}
+
+.nav-menu {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.mobile-drawer .nav-menu {
+  flex: 1 1 auto;
+}
+
+.mobile-drawer .session-action {
+  width: 100%;
+  justify-content: center;
+}
+
+.nav-menu a {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.nav-menu a:hover,
+.nav-menu a[aria-current="page"] {
+  color: var(--ink);
+  background: var(--surface-muted);
+}
+
+.side-rail {
+  display: none;
 }
 
 .workspace {
@@ -854,15 +943,56 @@ textarea:focus {
   text-align: center;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .is-hidden {
   display: none;
 }
 
-@media (max-width: 800px) {
-  .topbar {
-    position: static;
+@media (min-width: 960px) {
+  .app-shell {
+    padding-left: 220px;
   }
 
+  .mobile-header,
+  .mobile-drawer,
+  .drawer-backdrop {
+    display: none;
+  }
+
+  .side-rail {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 5;
+    display: grid;
+    grid-template-rows: auto auto auto 1fr auto;
+    gap: 16px;
+    width: 220px;
+    padding: 18px 14px;
+  }
+
+  .side-rail .brand {
+    min-height: 44px;
+  }
+
+  .side-rail .session-action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .workspace,
+  .dashboard-shell,
+  .login-shell {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (max-width: 800px) {
   .workspace,
   .dashboard-shell,
   .login-shell {
@@ -889,26 +1019,6 @@ textarea:focus {
 }
 
 @media (max-width: 520px) {
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .topbar-actions {
-    justify-content: space-between;
-    width: 100%;
-  }
-
-  .topnav {
-    order: 3;
-    width: 100%;
-  }
-
-  .topnav a {
-    flex: 1 1 0;
-    justify-content: center;
-  }
-
   .task-main,
   .task-edit-form {
     grid-template-columns: 1fr;

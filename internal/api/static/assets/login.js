@@ -4,15 +4,22 @@ const state = {
 };
 
 const els = {
-  sessionSummary: document.querySelector("#sessionSummary"),
+  sessionSummaries: document.querySelectorAll("[data-session-summary]"),
+  navProfiles: document.querySelectorAll("[data-nav-profile]"),
+  navAvatars: document.querySelectorAll("[data-nav-avatar]"),
+  navNames: document.querySelectorAll("[data-nav-name]"),
   authStatus: document.querySelector("#authStatus"),
   loginForm: document.querySelector("#loginForm"),
   registerForm: document.querySelector("#registerForm"),
-  logoutButton: document.querySelector("#logoutButton"),
+  logoutButtons: document.querySelectorAll("[data-logout-button]"),
   devLogin: document.querySelector("#devLogin"),
   devUserID: document.querySelector("#devUserID"),
-  themeToggle: document.querySelector("#themeToggle"),
-  themeIcon: document.querySelector("#themeIcon"),
+  themeToggles: document.querySelectorAll("[data-theme-toggle]"),
+  themeIcons: document.querySelectorAll("[data-theme-icon]"),
+  drawer: document.querySelector("#mobileDrawer"),
+  drawerOpen: document.querySelector("[data-drawer-open]"),
+  drawerClose: document.querySelector("[data-drawer-close]"),
+  drawerBackdrop: document.querySelector("[data-drawer-backdrop]"),
   authTabs: Array.from(document.querySelectorAll("[data-auth-tab]")),
   authViews: Array.from(document.querySelectorAll("[data-auth-view]")),
   devUserButtons: Array.from(document.querySelectorAll("[data-dev-user]")),
@@ -26,7 +33,7 @@ function init() {
   });
   els.loginForm.addEventListener("submit", handleLogin);
   els.registerForm.addEventListener("submit", handleRegister);
-  els.logoutButton.addEventListener("click", handleLogout);
+  els.logoutButtons.forEach((button) => button.addEventListener("click", handleLogout));
   els.devLogin.addEventListener("click", handleDevLogin);
   els.devUserButtons.forEach((button) => {
     button.addEventListener("click", () => {
@@ -34,7 +41,13 @@ function init() {
       handleDevLogin();
     });
   });
-  els.themeToggle.addEventListener("click", toggleTheme);
+  els.themeToggles.forEach((button) => button.addEventListener("click", toggleTheme));
+  els.drawerOpen?.addEventListener("click", openDrawer);
+  els.drawerClose?.addEventListener("click", closeDrawer);
+  els.drawerBackdrop?.addEventListener("click", closeDrawer);
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeDrawer();
+  });
 
   renderTheme();
   renderSession();
@@ -59,7 +72,25 @@ function toggleTheme() {
 
 function renderTheme() {
   document.documentElement.dataset.theme = state.theme;
-  els.themeIcon.textContent = state.theme === "dark" ? "☀" : "◐";
+  els.themeIcons.forEach((icon) => {
+    icon.textContent = state.theme === "dark" ? "☀" : "◐";
+  });
+}
+
+function openDrawer() {
+  els.drawer?.classList.add("is-open");
+  els.drawer?.setAttribute("aria-hidden", "false");
+  if (els.drawerBackdrop) els.drawerBackdrop.hidden = false;
+  els.drawerOpen?.setAttribute("aria-expanded", "true");
+  document.body.classList.add("drawer-open");
+}
+
+function closeDrawer() {
+  els.drawer?.classList.remove("is-open");
+  els.drawer?.setAttribute("aria-hidden", "true");
+  if (els.drawerBackdrop) els.drawerBackdrop.hidden = true;
+  els.drawerOpen?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("drawer-open");
 }
 
 async function handleLogin(event) {
@@ -200,10 +231,29 @@ function saveSession(user) {
 function renderSession() {
   const user = state.session?.user;
   const loggedIn = Boolean(user);
-  els.logoutButton.classList.toggle("is-hidden", !loggedIn);
-  els.sessionSummary.textContent = loggedIn
-    ? `@${user.handle} · ${user.points ?? 0} pts`
-    : "Signed out";
+  els.logoutButtons.forEach((button) => button.classList.toggle("is-hidden", !loggedIn));
+  els.navProfiles.forEach((profile) => {
+    profile.hidden = !loggedIn;
+  });
+  els.sessionSummaries.forEach((summary) => {
+    summary.textContent = loggedIn ? `@${user.handle} · ${user.points ?? 0} pts` : "Signed out";
+  });
+  els.navNames.forEach((name) => {
+    name.textContent = loggedIn ? user.display_name || user.handle : "";
+  });
+  els.navAvatars.forEach((avatar) => {
+    avatar.textContent = loggedIn ? userInitials(user) : "";
+  });
+}
+
+function userInitials(user) {
+  const source = user.display_name || user.handle || "?";
+  return source
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join("");
 }
 
 function redirectAfterLogin() {

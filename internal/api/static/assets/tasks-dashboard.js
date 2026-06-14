@@ -6,26 +6,39 @@ const state = {
 };
 
 const els = {
-  sessionSummary: document.querySelector("#sessionSummary"),
+  sessionSummaries: document.querySelectorAll("[data-session-summary]"),
+  navProfiles: document.querySelectorAll("[data-nav-profile]"),
+  navAvatars: document.querySelectorAll("[data-nav-avatar]"),
+  navNames: document.querySelectorAll("[data-nav-name]"),
   authStatus: document.querySelector("#authStatus"),
   dashboardMeta: document.querySelector("#dashboardMeta"),
   assigneeTabs: document.querySelector("#assigneeTabs"),
   dashboardTasks: document.querySelector("#dashboardTasks"),
   refreshDashboard: document.querySelector("#refreshDashboard"),
-  themeToggle: document.querySelector("#themeToggle"),
-  themeIcon: document.querySelector("#themeIcon"),
-  loginLink: document.querySelector("#loginLink"),
-  logoutButton: document.querySelector("#logoutButton"),
+  themeToggles: document.querySelectorAll("[data-theme-toggle]"),
+  themeIcons: document.querySelectorAll("[data-theme-icon]"),
+  drawer: document.querySelector("#mobileDrawer"),
+  drawerOpen: document.querySelector("[data-drawer-open]"),
+  drawerClose: document.querySelector("[data-drawer-close]"),
+  drawerBackdrop: document.querySelector("[data-drawer-backdrop]"),
+  loginLinks: document.querySelectorAll("[data-login-link]"),
+  logoutButtons: document.querySelectorAll("[data-logout-button]"),
 };
 
 init();
 
 function init() {
-  els.logoutButton.addEventListener("click", handleLogout);
-  els.themeToggle.addEventListener("click", toggleTheme);
+  els.logoutButtons.forEach((button) => button.addEventListener("click", handleLogout));
+  els.themeToggles.forEach((button) => button.addEventListener("click", toggleTheme));
+  els.drawerOpen?.addEventListener("click", openDrawer);
+  els.drawerClose?.addEventListener("click", closeDrawer);
+  els.drawerBackdrop?.addEventListener("click", closeDrawer);
   els.refreshDashboard.addEventListener("click", loadDashboard);
   els.assigneeTabs.addEventListener("click", handleTabClick);
   els.dashboardTasks.addEventListener("click", handleTaskClick);
+  window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeDrawer();
+  });
 
   renderTheme();
   renderSession();
@@ -45,7 +58,25 @@ function toggleTheme() {
 
 function renderTheme() {
   document.documentElement.dataset.theme = state.theme;
-  els.themeIcon.textContent = state.theme === "dark" ? "☀" : "◐";
+  els.themeIcons.forEach((icon) => {
+    icon.textContent = state.theme === "dark" ? "☀" : "◐";
+  });
+}
+
+function openDrawer() {
+  els.drawer?.classList.add("is-open");
+  els.drawer?.setAttribute("aria-hidden", "false");
+  if (els.drawerBackdrop) els.drawerBackdrop.hidden = false;
+  els.drawerOpen?.setAttribute("aria-expanded", "true");
+  document.body.classList.add("drawer-open");
+}
+
+function closeDrawer() {
+  els.drawer?.classList.remove("is-open");
+  els.drawer?.setAttribute("aria-hidden", "true");
+  if (els.drawerBackdrop) els.drawerBackdrop.hidden = true;
+  els.drawerOpen?.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("drawer-open");
 }
 
 async function handleLogout() {
@@ -82,12 +113,33 @@ async function hydrateCurrentUser(showError = true) {
 function renderSession() {
   const user = state.session?.user;
   const loggedIn = Boolean(user);
-  els.loginLink.href = `/login?return_to=${encodeURIComponent(window.location.pathname)}`;
-  els.loginLink.classList.toggle("is-hidden", loggedIn);
-  els.logoutButton.classList.toggle("is-hidden", !loggedIn);
-  els.sessionSummary.textContent = loggedIn
-    ? `@${user.handle} · ${user.points ?? 0} pts`
-    : "Signed out";
+  els.loginLinks.forEach((link) => {
+    link.href = `/login?return_to=${encodeURIComponent(window.location.pathname)}`;
+    link.classList.toggle("is-hidden", loggedIn);
+  });
+  els.logoutButtons.forEach((button) => button.classList.toggle("is-hidden", !loggedIn));
+  els.navProfiles.forEach((profile) => {
+    profile.hidden = !loggedIn;
+  });
+  els.sessionSummaries.forEach((summary) => {
+    summary.textContent = loggedIn ? `@${user.handle} · ${user.points ?? 0} pts` : "Signed out";
+  });
+  els.navNames.forEach((name) => {
+    name.textContent = loggedIn ? user.display_name || user.handle : "";
+  });
+  els.navAvatars.forEach((avatar) => {
+    avatar.textContent = loggedIn ? userInitials(user) : "";
+  });
+}
+
+function userInitials(user) {
+  const source = user.display_name || user.handle || "?";
+  return source
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join("");
 }
 
 async function loadDashboard() {

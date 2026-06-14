@@ -9,25 +9,68 @@
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
+      <header class="mobile-header">
+        <button class="icon-action" type="button" data-drawer-open aria-controls="mobileDrawer" aria-expanded="false" aria-label="Open navigation">☰</button>
         <a class="brand" href="/posts" aria-label="Home API">
           <img src="/assets/mark.svg" alt="" />
           <span>Home API</span>
         </a>
-        <div class="topbar-actions">
-          <nav class="topnav" aria-label="Primary">
-            <a href="/posts">Posts</a>
-            <a href="/tasks">Tasks</a>
-            <a href="/tasks/dashboard" aria-current="page">Dashboard</a>
-          </nav>
-          <button class="icon-action" type="button" id="themeToggle" aria-label="Toggle dark mode" title="Toggle dark mode">
-            <span id="themeIcon">◐</span>
-          </button>
-          <div class="session" id="sessionSummary"></div>
-          <a class="secondary-action compact-action session-action" id="loginLink" href="/login">Login</a>
-          <button class="secondary-action compact-action session-action is-hidden" type="button" id="logoutButton">Logout</button>
-        </div>
+        <button class="icon-action" type="button" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode">
+          <span data-theme-icon>◐</span>
+        </button>
       </header>
+
+      <div class="drawer-backdrop" data-drawer-backdrop hidden></div>
+      <aside class="mobile-drawer" id="mobileDrawer" aria-label="Primary navigation" aria-hidden="true">
+        <div class="drawer-head">
+          <a class="brand" href="/posts" aria-label="Home API">
+            <img src="/assets/mark.svg" alt="" />
+            <span>Home API</span>
+          </a>
+          <button class="icon-action" type="button" data-drawer-close aria-label="Close navigation">×</button>
+        </div>
+        <div class="nav-profile" data-nav-profile hidden>
+          <div class="avatar" data-nav-avatar></div>
+          <div>
+            <strong data-nav-name></strong>
+            <span class="session" data-session-summary></span>
+          </div>
+        </div>
+        <a class="secondary-action session-action" data-login-link href="/login">Login</a>
+        <nav class="nav-menu" aria-label="Primary">
+          <a href="/posts">Posts</a>
+          <a href="/tasks">Tasks</a>
+          <a href="/tasks/dashboard" aria-current="page">Dashboard</a>
+        </nav>
+        <div class="nav-footer">
+          <button class="secondary-action" type="button" data-theme-toggle><span data-theme-icon>◐</span></button>
+          <button class="secondary-action session-action is-hidden" type="button" data-logout-button>Logout</button>
+        </div>
+      </aside>
+
+      <nav class="side-rail" aria-label="Primary">
+        <a class="brand" href="/posts" aria-label="Home API">
+          <img src="/assets/mark.svg" alt="" />
+          <span>Home API</span>
+        </a>
+        <div class="nav-profile" data-nav-profile hidden>
+          <div class="avatar" data-nav-avatar></div>
+          <div>
+            <strong data-nav-name></strong>
+            <span class="session" data-session-summary></span>
+          </div>
+        </div>
+        <a class="secondary-action session-action" data-login-link href="/login">Login</a>
+        <div class="nav-menu">
+          <a href="/posts">Posts</a>
+          <a href="/tasks">Tasks</a>
+          <a href="/tasks/dashboard" aria-current="page">Dashboard</a>
+        </div>
+        <div class="nav-footer">
+          <button class="secondary-action" type="button" data-theme-toggle><span data-theme-icon>◐</span></button>
+          <button class="secondary-action session-action is-hidden" type="button" data-logout-button>Logout</button>
+        </div>
+      </nav>
 
       <main class="dashboard-shell">
         <section class="dashboard-panel" aria-labelledby="dashboardTitle">
